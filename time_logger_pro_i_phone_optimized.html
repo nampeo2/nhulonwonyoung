@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time Logger iOS</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f2f2f7" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont; margin:0; background:#f2f2f7; color:#000; }
+.header{padding:16px;font-size:22px;font-weight:600}
+.card{background:white;border-radius:16px;padding:14px;margin:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05)}
+button { padding:12px; margin:4px; font-size:15px; border-radius:12px; border:none; }
+.primary{background:#007aff;color:white}
+.danger{background:#ff3b30;color:white}
+.gray{background:#e5e5ea}
+select{padding:10px;border-radius:10px;border:1px solid #ddd;width:100%}
+.big{font-size:20px;font-weight:600}
+ul{list-style:none;padding:0}
+li{padding:10px;border-bottom:1px solid #eee}
+</style>
+</head>
+<body>
+
+<div class="header">Time Logger</div>
+
+<div class="card">
+<select id="tag">
+<option>Work</option>
+<option>Study</option>
+<option>Game</option>
+<option>Other</option>
+</select>
+<br><br>
+<button class="primary" onclick="startSession()">Start</button>
+<button class="danger" onclick="stopSession()">Stop</button>
+<button class="gray" onclick="logTime()">Quick Log</button>
+</div>
+
+<div class="card">
+<div class="big" id="todayTotal">Today: 0h</div>
+<div id="status">Idle</div>
+</div>
+
+<div class="card">
+<canvas id="trendChart"></canvas>
+</div>
+
+<div class="card">
+<button onclick="syncCloud()">Import</button>
+<button onclick="exportBackup()">Export</button>
+</div>
+
+<ul id="logList"></ul>
+
+<script>
+let logs = JSON.parse(localStorage.getItem("logs")) || [];
+let sessions = JSON.parse(localStorage.getItem("sessions")) || [];
+let active = JSON.parse(localStorage.getItem("active")) || null;
+let lastActivity = Date.now();
+
+// detect idle (no click 5 min)
+setInterval(()=>{
+  if(active && Date.now() - lastActivity > 300000){
+    if(confirm("Bạn có còn đang làm việc không?")){
+      lastActivity = Date.now();
+    }else{
+      stopSession();
+    }
+  }
+},60000);
+
+document.addEventListener("click",()=> lastActivity = Date.now());
+
+function save(){
+  localStorage.setItem("logs", JSON.stringify(logs));
+  localStorage.setItem("sessions", JSON.stringify(sessions));
+  localStorage.setItem("active", JSON.stringify(active));
+}
+
+function now(){ return new Date(); }
+function getTag(){ return document.getElementById("tag").value; }
+
+function format(date) {
+  return date.toLocaleString();
+}
+
+function roundTime(date) {
+  let mins = date.getMinutes();
+  let rounded;
+  if (mins <= 7) rounded = 0;
+  else if (mins <= 22) rounded = 15;
+  else if (mins <= 37) rounded = 30;
+  else if (mins <= 52) rounded = 45;
+  else { rounded = 0; date.setHours(date.getHours()+1); }
+  date.setMinutes(rounded); date.setSeconds(0);
+  return date;
+}
+
+function logTime(){
+  logs.push({time: format(roundTime(now())), tag:getTag()});
+  save(); render();
+}
+
+function startSession(){
+  if(active){ alert("Already running"); return; }
+  active = { start: now().toISOString(), tag:getTag() };
+  lastActivity = Date.now();
+  save(); render();
+}
+
+function stopSession(){
+  if(!active) return;
+  sessions.push({ start: active.start, end: now().toISOString(), tag:active.tag });
+  active = null;
+  save(); render();
+}
+
+function calcToday(){
+  let total = 0;
+  let today = new Date().toDateString();
+  sessions.forEach(s=>{
+    let start = new Date(s.start);
+    let end = new Date(s.end);
+    if(start.toDateString()===today){ total += (end-start); }
+  });
+  let h = Math.floor(total/3600000);
+  let m = Math.floor((total%3600000)/60000);
+  document.getElementById("todayTotal").innerText = `Today: ${h}h ${m}m`;
+}
+
+function buildChart(){
+  let dayMap = {};
+  for(let i=6;i>=0;i--){
+    let d = new Date(); d.setDate(d.getDate()-i);
+    dayMap[d.toDateString()] = 0;
+  }
+  sessions.forEach(s=>{
+    let d = new Date(s.start).toDateString();
+    if(dayMap[d]!=null){
+      dayMap[d]+= (new Date(s.end)-new Date(s.start))/3600000;
+    }
+  });
+
+  new Chart(document.getElementById("trendChart"),{
+    type:'line',
+    data:{labels:Object.keys(dayMap),datasets:[{data:Object.values(dayMap)}]}
+  });
+}
+
+function syncCloud(){
+  let input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    let file = e.target.files[0];
+    let reader = new FileReader();
+    reader.onload = () => {
+      let data = JSON.parse(reader.result);
+      logs = data.logs || [];
+      sessions = data.sessions || [];
+      save(); render();
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function exportBackup(){
+  let blob = new Blob([JSON.stringify({logs,sessions},null,2)],{type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "timelog.json";
+  a.click();
+}
+
+function render(){
+  let list = document.getElementById("logList");
+  list.innerHTML="";
+
+  sessions.slice().reverse().forEach(s=>{
+    let li = document.createElement("li");
+    let dur = (new Date(s.end)-new Date(s.start))/60000;
+    li.textContent = `${s.tag} • ${Math.round(dur)}m`;
+    list.appendChild(li);
+  });
+
+  document.getElementById("status").innerText = active ? "Running..." : "Idle";
+  calcToday();
+
+  document.getElementById("trendChart").replaceWith(document.getElementById("trendChart").cloneNode());
+  buildChart();
+}
+
+render();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+
+</body>
+</html>
