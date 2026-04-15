@@ -32,6 +32,19 @@ body{font-family:-apple-system;margin:0;background:#f2f2f7}
 </div>
 
 <div class="card">
+  <b>Export / Import</b>
+  <span class="help" onclick="alert('TXT = đọc nhanh\nCSV = Excel\nJSON = backup & sync')">?</span>
+  <br><br>
+
+  <button onclick="exportTXT()">TXT</button>
+  <button onclick="exportCSV()">CSV</button>
+  <button onclick="exportJSON()">JSON</button>
+  <br><br>
+
+  <button onclick="importFile()">Import</button>
+</div>
+  
+<div class="card">
 <b>Top Category</b>
 <span class="help" onclick="alert('Category with highest usage in selected range')">?</span>
 <div id="top"></div>
@@ -80,6 +93,107 @@ localStorage.setItem('tags',JSON.stringify(tags));
 localStorage.setItem('colors',JSON.stringify(colors));
 }
 
+function exportTXT(){
+  let map={};
+
+  sessions.forEach(s=>{
+    let d=new Date(s.start).toLocaleDateString();
+    if(!map[d]) map[d]=[];
+    map[d].push(s);
+  });
+
+  let output="";
+
+  for(let day in map){
+    output+=day+"\n";
+    let total=0;
+
+    map[day].forEach(s=>{
+      let dur=Math.round((s.end-s.start)/60000);
+      total+=dur;
+      output+=`- ${new Date(s.start).toLocaleTimeString()} (${dur}m)\n`;
+    });
+
+    output+=`Total: ${total}m\n\n`;
+  }
+
+  download(output,"timelog.txt","text/plain");
+}
+
+  function exportCSV(){
+  let rows=[["Date","Start","End","Minutes","Tag"]];
+
+  sessions.forEach(s=>{
+    rows.push([
+      new Date(s.start).toLocaleDateString(),
+      new Date(s.start).toLocaleTimeString(),
+      new Date(s.end).toLocaleTimeString(),
+      Math.round((s.end-s.start)/60000),
+      s.tag
+    ]);
+  });
+
+  let csv=rows.map(r=>r.join(",")).join("\n");
+  download(csv,"timelog.csv","text/csv");
+}function exportCSV(){
+  let rows=[["Date","Start","End","Minutes","Tag"]];
+
+  sessions.forEach(s=>{
+    rows.push([
+      new Date(s.start).toLocaleDateString(),
+      new Date(s.start).toLocaleTimeString(),
+      new Date(s.end).toLocaleTimeString(),
+      Math.round((s.end-s.start)/60000),
+      s.tag
+    ]);
+  });
+
+  let csv=rows.map(r=>r.join(",")).join("\n");
+  download(csv,"timelog.csv","text/csv");
+}
+
+  function exportJSON(){
+  let json=JSON.stringify({sessions},null,2);
+  download(json,"timelog.json","application/json");
+}
+
+  function importFile(){
+  let input=document.createElement('input');
+  input.type='file';
+  input.accept='.json';
+
+  input.onchange=e=>{
+    let reader=new FileReader();
+
+    reader.onload=()=>{
+      let data=JSON.parse(reader.result);
+      let incoming=data.sessions||[];
+
+      incoming.forEach(n=>{
+        if(!sessions.find(s=>s.start===n.start && s.end===n.end && s.tag===n.tag)){
+          sessions.push(n);
+        }
+      });
+
+      save();
+      render();
+      alert("Import thành công (đã merge dữ liệu)");
+    };
+
+    reader.readAsText(e.target.files[0]);
+  };
+
+  input.click();
+}
+
+  function download(content,name,type){
+  let blob=new Blob([content],{type});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  a.click();
+}
+  
 function renderTags(){
 let sel=document.getElementById('tag');
 sel.innerHTML='';
