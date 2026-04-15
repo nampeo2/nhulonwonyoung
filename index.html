@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Time Logger Pro+</title>
+<title>Time Logger Pro</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body{font-family:-apple-system;background:#f2f2f7;margin:0}
@@ -11,11 +11,6 @@ button{padding:10px;border-radius:10px;border:none;margin:4px}
 .big{width:80px;height:80px;border-radius:50%}
 .start{background:#34c759;color:#fff}
 .stop{background:#ff3b30;color:#fff}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 16px;border-radius:20px;opacity:0;transition:0.3s}
-.toast.show{opacity:1}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
-th{color:#888}
 </style>
 </head>
 <body>
@@ -39,26 +34,16 @@ th{color:#888}
 <b>Delete by Date</b><br>
 <input type="date" id="deleteDate">
 <button onclick="deleteDay()">Delete</button>
-<button onclick="undoDelete()">Undo</button>
 </div>
 
 <div class="card" id="previewBox"></div>
-<div class="toast" id="toast"></div>
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
-let backupDeleted=null;
 let active=null;
 let tags=JSON.parse(localStorage.getItem('tags'))||['Work','Study'];
 
 function save(){localStorage.setItem('sessions',JSON.stringify(sessions));localStorage.setItem('tags',JSON.stringify(tags));}
-
-function toast(msg){
-let t=document.getElementById('toast');
-t.innerText=msg;
-t.classList.add('show');
-setTimeout(()=>t.classList.remove('show'),2000);
-}
 
 function renderTags(){
 let sel=document.getElementById('tag');
@@ -72,20 +57,28 @@ let n=prompt('Rename tag',old);
 if(!n)return;
 tags=tags.map(t=>t===old?n:t);
 sessions.forEach(s=>{if(s.tag===old)s.tag=n});
-save();renderTags();toast('Renamed');
+save();renderTags();alert('Renamed');
 }
 
 function getTag(){return document.getElementById('tag').value}
 
-function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
+function round15(ts){
+return Math.round(ts/(15*60000))*(15*60000);
+}
 
-function startSession(){active={start:Date.now(),tag:getTag()};toast('Started');}
+function startSession(){
+active={start:Date.now(),tag:getTag()};
+alert('Started');
+}
 
 function stopSession(){
 if(!active)return;
-let s={start:round15(active.start),end:round15(Date.now()),tag:active.tag};
+let end=Date.now();
+let s={start:round15(active.start),end:round15(end),tag:active.tag};
 sessions.push(s);
-active=null;save();toast('Saved');
+active=null;
+save();
+alert('Saved');
 }
 
 function filterRange(){
@@ -94,82 +87,50 @@ let to=new Date(document.getElementById('to').value).getTime();
 return sessions.filter(s=>s.start>=from && s.end<=to);
 }
 
-function buildCSVData(data){
-let daily={};
-let rows=[];
+function buildCSV(data){
+let map={};
 let total=0;
 
 data.forEach(s=>{
-let date=new Date(s.start).toLocaleDateString();
+let d=new Date(s.start).toLocaleDateString();
+if(!map[d])map[d]=0;
 let dur=(s.end-s.start)/60000;
-if(!daily[date])daily[date]=0;
-daily[date]+=dur;
+map[d]+=dur;
 total+=dur;
-
-rows.push({
-  date,
-  start:new Date(s.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
-  end:new Date(s.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
-  min:Math.round(dur),
-  tag:s.tag
-});
 });
 
-return {rows,daily,total};
+let rows=[["Date","Total Minutes"]];
+for(let d in map){rows.push([d,Math.round(map[d])]);}
+rows.push(["TOTAL",Math.round(total)]);
+return rows.map(r=>r.join(",")).join("\n");
 }
 
 function previewExport(){
 let data=filterRange();
-let {rows,daily,total}=buildCSVData(data);
-
-let html='<table><tr><th>Date</th><th>Start</th><th>End</th><th>Min</th><th>Tag</th></tr>';
-rows.forEach(r=>{
-html+=`<tr><td>${r.date}</td><td>${r.start}</td><td>${r.end}</td><td>${r.min}</td><td>${r.tag}</td></tr>`;
-});
-html+='</table><br><b>Daily Summary</b><br>';
-
-for(let d in daily){html+=`${d}: ${Math.round(daily[d])}m<br>`}
-html+=`<br><b>Total: ${Math.round(total)}m</b>`;
-
-previewBox.innerHTML=html;
+let csv=buildCSV(data);
+document.getElementById('previewBox').innerText=csv;
 }
 
 function exportCSV(){
 let data=filterRange();
-let {rows,daily,total}=buildCSVData(data);
-
-let csv='Date,Start,End,Minutes,Tag\n';
-rows.forEach(r=>{csv+=`${r.date},${r.start},${r.end},${r.min},${r.tag}\n`});
-
-csv+='\nDaily Summary\n';
-for(let d in daily){csv+=`${d},${Math.round(daily[d])}\n`}
-
-csv+=`TOTAL,${Math.round(total)}`;
-
+let csv=buildCSV(data);
 let blob=new Blob([csv],{type:'text/csv'});
 let file=new File([blob],'timelog.csv');
 
-if(navigator.share){navigator.share({files:[file],title:'Time Log'});} 
-else{
-let a=document.createElement('a');
-a.href=URL.createObjectURL(blob);
-a.download='timelog.csv';
-a.click();
+if(navigator.share){
+  navigator.share({files:[file],title:'Time Log'});
+}else{
+  let a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='timelog.csv';
+  a.click();
 }
 }
 
 function deleteDay(){
 let d=new Date(document.getElementById('deleteDate').value).toDateString();
-backupDeleted=sessions.filter(s=>new Date(s.start).toDateString()===d);
 sessions=sessions.filter(s=>new Date(s.start).toDateString()!==d);
-save();toast('Deleted');
-}
-
-function undoDelete(){
-if(!backupDeleted)return;
-sessions=[...sessions,...backupDeleted];
-backupDeleted=null;
-save();toast('Undo success');
+save();alert('Deleted');
 }
 
 renderTags();
