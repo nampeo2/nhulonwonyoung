@@ -2,288 +2,237 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cc</title>
-<link rel="manifest" href="manifest.json">
+<title>Time Logger Pro++</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{font-family:-apple-system;margin:0;background:#f2f2f7}
-.header{padding:16px;font-size:22px;font-weight:600}
-.card{background:#fff;border-radius:18px;padding:14px;margin:12px}
-.row{display:flex;justify-content:space-between;align-items:center}
-.big-btn{width:80px;height:80px;border-radius:50%;border:none}
+body{font-family:-apple-system;background:#f2f2f7;margin:0}
+.card{background:#fff;margin:12px;padding:14px;border-radius:16px}
+button{padding:10px;border-radius:10px;border:none;margin:4px}
+.big{width:80px;height:80px;border-radius:50%}
 .start{background:#34c759;color:#fff}
 .stop{background:#ff3b30;color:#fff}
-.help{font-size:12px;color:#007aff;cursor:pointer;margin-left:6px}
-.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center}
-.modal-box{background:#fff;padding:20px;border-radius:16px;width:90%}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 16px;border-radius:20px;opacity:0;transition:0.3s}
+.toast.show{opacity:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+th{color:#888}
 </style>
 </head>
 <body>
 
-<div class="header">Screen Time</div>
-
-<div class="card row">
+<div class="card">
 <select id="tag"></select>
-<input type="color" id="tagColor" onchange="setTagColor()">
-<div>
-<button class="big-btn start" onclick="startSession()">Start</button>
-<button class="big-btn stop" onclick="stopSession()">Stop</button>
-</div>
+<button onclick="renameTag()">Rename Tag</button>
+<button class="big start" onclick="startSession()">Start</button>
+<button class="big stop" onclick="stopSession()">Stop</button>
 </div>
 
 <div class="card">
-  <b>Export / Import</b>
-  <span class="help" onclick="alert('TXT = đọc nhanh\nCSV = Excel\nJSON = backup & sync')">?</span>
-  <br><br>
-
-  <button onclick="exportTXT()">TXT</button>
-  <button onclick="exportCSV()">CSV</button>
-  <button onclick="exportJSON()">JSON</button>
-  <br><br>
-
-  <button onclick="importFile()">Import</button>
-</div>
-  
-<div class="card">
-<b>Top Category</b>
-<span class="help" onclick="alert('Category with highest usage in selected range')">?</span>
-<div id="top"></div>
-</div>
-
-<div class="card">
-<select id="range" onchange="render()">
-<option value="7">7d</option>
-<option value="30">30d</option>
-<option value="90">90d</option>
-</select>
+<b>Dashboard</b><br>
 <canvas id="chart"></canvas>
 </div>
 
 <div class="card">
-<b>Breakdown</b>
-<canvas id="pie"></canvas>
-<div id="percent"></div>
+<b>Export CSV</b><br>
+<input type="date" id="from">
+<input type="date" id="to"><br>
+<button onclick="previewExport()">Preview</button>
+<button onclick="exportCSV()">Export</button>
 </div>
 
 <div class="card">
-<b>Sessions</b>
-<ul id="list"></ul>
+<b>Tag Analytics</b>
+<div id="analytics"></div>
 </div>
 
-<div class="modal" id="modal">
-<div class="modal-box">
-Start:<br><input type="datetime-local" id="editStart"><br>
-End:<br><input type="datetime-local" id="editEnd"><br><br>
-<button onclick="saveEdit()">Save</button>
-<button onclick="closeModal()">Cancel</button>
+<div class="card">
+<b>Delete by Date</b><br>
+<input type="date" id="deleteDate">
+<button onclick="deleteDay()">Delete</button>
+<button onclick="undoDelete()">Undo</button>
 </div>
-</div>
+
+<div class="card" id="previewBox"></div>
+<div class="toast" id="toast"></div>
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
-let active=JSON.parse(localStorage.getItem('active'))||null;
+let backupDeleted=null;
+let active=null;
 let tags=JSON.parse(localStorage.getItem('tags'))||['Work','Study'];
-let colors=JSON.parse(localStorage.getItem('colors'))||{};
-let editIndex=null;
 
-function save(){
-localStorage.setItem('sessions',JSON.stringify(sessions));
-localStorage.setItem('active',JSON.stringify(active));
-localStorage.setItem('tags',JSON.stringify(tags));
-localStorage.setItem('colors',JSON.stringify(colors));
+function save(){localStorage.setItem('sessions',JSON.stringify(sessions));localStorage.setItem('tags',JSON.stringify(tags));}
+
+function toast(msg){
+let t=document.getElementById('toast');
+t.innerText=msg;
+t.classList.add('show');
+setTimeout(()=>t.classList.remove('show'),2000);
 }
 
-function exportTXT(){
-  let map={};
-
-  sessions.forEach(s=>{
-    let d=new Date(s.start).toLocaleDateString();
-    if(!map[d]) map[d]=[];
-    map[d].push(s);
-  });
-
-  let output="";
-
-  for(let day in map){
-    output+=day+"\n";
-    let total=0;
-
-    map[day].forEach(s=>{
-      let dur=Math.round((s.end-s.start)/60000);
-      total+=dur;
-      output+=`- ${new Date(s.start).toLocaleTimeString()} (${dur}m)\n`;
-    });
-
-    output+=`Total: ${total}m\n\n`;
-  }
-
-  download(output,"timelog.txt","text/plain");
-}
-
-  function exportCSV(){
-  let rows=[["Date","Start","End","Minutes","Tag"]];
-
-  sessions.forEach(s=>{
-    rows.push([
-      new Date(s.start).toLocaleDateString(),
-      new Date(s.start).toLocaleTimeString(),
-      new Date(s.end).toLocaleTimeString(),
-      Math.round((s.end-s.start)/60000),
-      s.tag
-    ]);
-  });
-
-  let csv=rows.map(r=>r.join(",")).join("\n");
-  download(csv,"timelog.csv","text/csv");
-}function exportCSV(){
-  let rows=[["Date","Start","End","Minutes","Tag"]];
-
-  sessions.forEach(s=>{
-    rows.push([
-      new Date(s.start).toLocaleDateString(),
-      new Date(s.start).toLocaleTimeString(),
-      new Date(s.end).toLocaleTimeString(),
-      Math.round((s.end-s.start)/60000),
-      s.tag
-    ]);
-  });
-
-  let csv=rows.map(r=>r.join(",")).join("\n");
-  download(csv,"timelog.csv","text/csv");
-}
-
-  function exportJSON(){
-  let json=JSON.stringify({sessions},null,2);
-  download(json,"timelog.json","application/json");
-}
-
-  function importFile(){
-  let input=document.createElement('input');
-  input.type='file';
-  input.accept='.json';
-
-  input.onchange=e=>{
-    let reader=new FileReader();
-
-    reader.onload=()=>{
-      let data=JSON.parse(reader.result);
-      let incoming=data.sessions||[];
-
-      incoming.forEach(n=>{
-        if(!sessions.find(s=>s.start===n.start && s.end===n.end && s.tag===n.tag)){
-          sessions.push(n);
-        }
-      });
-
-      save();
-      render();
-      alert("Import thành công (đã merge dữ liệu)");
-    };
-
-    reader.readAsText(e.target.files[0]);
-  };
-
-  input.click();
-}
-
-  function download(content,name,type){
-  let blob=new Blob([content],{type});
-  let a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=name;
-  a.click();
-}
-  
 function renderTags(){
 let sel=document.getElementById('tag');
 sel.innerHTML='';
 tags.forEach(t=>{let o=document.createElement('option');o.text=t;sel.add(o);});
 }
 
-function setTagColor(){colors[getTag()]=tagColor.value;save();render();}
-function getTag(){return document.getElementById('tag').value;}
-
-function startSession(){if(active)return;active={start:Date.now(),tag:getTag()};save();}
-function stopSession(){if(!active)return;sessions.push({start:active.start,end:Date.now(),tag:active.tag});active=null;save();render();}
-
-function filterRange(){let d=parseInt(range.value);let cut=Date.now()-d*86400000;return sessions.filter(s=>s.start>=cut);} 
-
-function buildStacked(){
-let data=filterRange();
-let days={};
-let tagSet=new Set();
-
-data.forEach(s=>{
-let day=new Date(s.start).toDateString();
-tagSet.add(s.tag);
-if(!days[day])days[day]={};
-days[day][s.tag]=(days[day][s.tag]||0)+(s.end-s.start)/3600000;
-});
-
-let labels=Object.keys(days);
-let tagsArr=[...tagSet];
-
-let datasets=tagsArr.map(t=>({
-label:t,
-data:labels.map(d=>days[d][t]||0),
-backgroundColor:colors[t]||'#888'
-}));
-
-new Chart(chart,{type:'bar',data:{labels,datasets},options:{scales:{x:{stacked:true},y:{stacked:true}}}});
+function renameTag(){
+let old=getTag();
+let n=prompt('Rename tag',old);
+if(!n)return;
+tags=tags.map(t=>t===old?n:t);
+sessions.forEach(s=>{if(s.tag===old)s.tag=n});
+save();renderTags();toast('Renamed');
 }
 
-function buildPie(){
-let map={};let total=0;
-filterRange().forEach(s=>{
-let d=(s.end-s.start)/60000;
-map[s.tag]=(map[s.tag]||0)+d; total+=d;
+function getTag(){return document.getElementById('tag').value}
+
+function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
+
+function startSession(){active={start:Date.now(),tag:getTag()};toast('Started');}
+
+function stopSession(){
+if(!active)return;
+let s={start:round15(active.start),end:round15(Date.now()),tag:active.tag};
+sessions.push(s);
+active=null;save();render();toast('Saved');
+}
+
+function filterRange(){
+let from=new Date(document.getElementById('from').value).getTime();
+let to=new Date(document.getElementById('to').value).getTime();
+return sessions.filter(s=>s.start>=from && s.end<=to);
+}
+
+// ===== Dashboard + click sync =====
+let chartInstance=null;
+function buildChart(){
+let map={};
+sessions.forEach(s=>{
+let d=new Date(s.start).toLocaleDateString();
+if(!map[d])map[d]=0;
+map[d]+=(s.end-s.start)/60000;
 });
 let labels=Object.keys(map);
-let values=Object.values(map);
-new Chart(pie,{type:'pie',data:{labels,datasets:[{data:values,backgroundColor:labels.map(l=>colors[l]||'#888')}]}});
+let data=Object.values(map);
 
-let html='';let topTag='';let max=0;
-labels.forEach((l,i)=>{
-let pct=((values[i]/total)*100).toFixed(1);
-html+=`${l}: ${pct}%<br>`;
-if(values[i]>max){max=values[i];topTag=l;}
-});
-percent.innerHTML=html;
-top.innerHTML=topTag?`${topTag} (${((max/total)*100).toFixed(1)}%)`:'';
-}
-
-function renderList(){
-list.innerHTML='';
-sessions.slice().reverse().forEach((s,i)=>{
-let li=document.createElement('li');
-let dur=Math.round((s.end-s.start)/60000);
-li.innerHTML=`${s.tag} • ${dur}m <button onclick="openEdit(${sessions.length-1-i})">Edit</button>`;
-list.appendChild(li);
+if(chartInstance) chartInstance.destroy();
+chartInstance=new Chart(chart,{
+ type:'bar',
+ data:{labels,datasets:[{data}]},
+ options:{
+  onClick:(e,items)=>{
+    if(items.length>0){
+      let i=items[0].index;
+      let date=labels[i];
+      let d=new Date(date);
+      from.value=d.toISOString().slice(0,10);
+      to.value=d.toISOString().slice(0,10);
+      toast('Range set from chart');
+    }
+  }
+ }
 });
 }
 
-function openEdit(i){
-editIndex=i;
-let s=sessions[i];
-editStart.value=new Date(s.start).toISOString().slice(0,16);
-editEnd.value=new Date(s.end).toISOString().slice(0,16);
-modal.style.display='flex';
+// ===== Tag analytics =====
+function tagAnalytics(){
+let now=Date.now();
+let week=7*86400000;
+let current=sessions.filter(s=>s.start>=now-week);
+let prev=sessions.filter(s=>s.start<now-week && s.start>=now-2*week);
+
+let mapNow={},mapPrev={};
+
+current.forEach(s=>{
+let d=(s.end-s.start)/60000;
+mapNow[s.tag]=(mapNow[s.tag]||0)+d;
+});
+prev.forEach(s=>{
+let d=(s.end-s.start)/60000;
+mapPrev[s.tag]=(mapPrev[s.tag]||0)+d;
+});
+
+let html='';
+tags.forEach(t=>{
+let a=mapNow[t]||0;
+let b=mapPrev[t]||0;
+let diff=a-b;
+let sign=diff>=0?'+':'';
+html+=`${t}: ${sign}${Math.round(diff)}m<br>`;
+});
+
+document.getElementById('analytics').innerHTML=html;
 }
 
-function closeModal(){modal.style.display='none';}
+// ===== Weekly popup =====
+function weeklyPopup(){
+let now=Date.now();
+let week=7*86400000;
+let total=0;
+sessions.forEach(s=>{
+if(s.start>=now-week) total+=(s.end-s.start)/60000;
+});
 
-function saveEdit(){
-let s=sessions[editIndex];
-s.start=new Date(editStart.value).getTime();
-s.end=new Date(editEnd.value).getTime();
-sessions[editIndex]=s;
-save();closeModal();render();
+if(!localStorage.getItem('weeklyShown')){
+  alert(`Weekly Report: ${Math.round(total)} minutes`);
+  localStorage.setItem('weeklyShown',true);
+}
+}
+
+// ===== CSV =====
+function buildCSVData(data){
+let daily={},rows=[],total=0;
+data.forEach(s=>{
+let date=new Date(s.start).toLocaleDateString();
+let dur=(s.end-s.start)/60000;
+if(!daily[date])daily[date]=0;
+daily[date]+=dur; total+=dur;
+rows.push({date,start:new Date(s.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),end:new Date(s.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),min:Math.round(dur),tag:s.tag});
+});
+return {rows,daily,total};
+}
+
+function previewExport(){
+let data=filterRange();
+let {rows,daily,total}=buildCSVData(data);
+let html='<table><tr><th>Date</th><th>Start</th><th>End</th><th>Min</th><th>Tag</th></tr>';
+rows.forEach(r=>{html+=`<tr><td>${r.date}</td><td>${r.start}</td><td>${r.end}</td><td>${r.min}</td><td>${r.tag}</td></tr>`});
+html+='</table><br><b>Daily Summary</b><br>';
+for(let d in daily){html+=`${d}: ${Math.round(daily[d])}m<br>`}
+html+=`<br><b>Total: ${Math.round(total)}m</b>`;
+previewBox.innerHTML=html;
+}
+
+function exportCSV(){
+let data=filterRange();
+let {rows,daily,total}=buildCSVData(data);
+let csv='Date,Start,End,Minutes,Tag\n';
+rows.forEach(r=>{csv+=`${r.date},${r.start},${r.end},${r.min},${r.tag}\n`});
+csv+='\nDaily Summary\n';
+for(let d in daily){csv+=`${d},${Math.round(daily[d])}\n`}
+csv+=`TOTAL,${Math.round(total)}`;
+let blob=new Blob([csv],{type:'text/csv'});
+let file=new File([blob],'timelog.csv');
+if(navigator.share){navigator.share({files:[file],title:'Time Log'});} else{
+let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='timelog.csv';a.click();}
+}
+
+function deleteDay(){
+let d=new Date(document.getElementById('deleteDate').value).toDateString();
+backupDeleted=sessions.filter(s=>new Date(s.start).toDateString()===d);
+sessions=sessions.filter(s=>new Date(s.start).toDateString()!==d);
+save();toast('Deleted');
+}
+
+function undoDelete(){
+if(!backupDeleted)return;
+sessions=[...sessions,...backupDeleted];
+backupDeleted=null;save();toast('Undo success');
 }
 
 function render(){
-chart.replaceWith(chart.cloneNode());
-pie.replaceWith(pie.cloneNode());
-buildStacked();buildPie();renderList();
+buildChart();tagAnalytics();weeklyPopup();
 }
 
 renderTags();render();
