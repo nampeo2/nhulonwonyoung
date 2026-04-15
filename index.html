@@ -2,21 +2,20 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Time Logger ScreenTime Style</title>
+<title>cc</title>
 <link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{font-family:-apple-system;margin:0;background:#f2f2f7;color:#000}
+body{font-family:-apple-system;margin:0;background:#f2f2f7}
 .header{padding:16px;font-size:22px;font-weight:600}
 .card{background:#fff;border-radius:18px;padding:14px;margin:12px}
 .row{display:flex;justify-content:space-between;align-items:center}
-.big-btn{width:80px;height:80px;border-radius:50%;border:none;font-size:14px}
+.big-btn{width:80px;height:80px;border-radius:50%;border:none}
 .start{background:#34c759;color:#fff}
 .stop{background:#ff3b30;color:#fff}
-.small{font-size:13px;color:#555}
-input,select{padding:8px;border-radius:10px;border:1px solid #ddd}
-ul{list-style:none;padding:0;margin:0}
-li{padding:10px;border-bottom:1px solid #eee}
+.help{font-size:12px;color:#007aff;cursor:pointer;margin-left:6px}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center}
+.modal-box{background:#fff;padding:20px;border-radius:16px;width:90%}
 </style>
 </head>
 <body>
@@ -25,6 +24,7 @@ li{padding:10px;border-bottom:1px solid #eee}
 
 <div class="card row">
 <select id="tag"></select>
+<input type="color" id="tagColor" onchange="setTagColor()">
 <div>
 <button class="big-btn start" onclick="startSession()">Start</button>
 <button class="big-btn stop" onclick="stopSession()">Stop</button>
@@ -32,138 +32,144 @@ li{padding:10px;border-bottom:1px solid #eee}
 </div>
 
 <div class="card">
-<div id="today" style="font-size:18px;font-weight:600">Today: 0h</div>
-<div class="small" id="status">Idle</div>
+<b>Top Category</b>
+<span class="help" onclick="alert('Category with highest usage in selected range')">?</span>
+<div id="top"></div>
 </div>
 
 <div class="card">
 <select id="range" onchange="render()">
-<option value="7">7 days</option>
-<option value="30">30 days</option>
-<option value="90">90 days</option>
+<option value="7">7d</option>
+<option value="30">30d</option>
+<option value="90">90d</option>
 </select>
 <canvas id="chart"></canvas>
 </div>
 
 <div class="card">
-<b>Tags</b>
-<ul id="tagList"></ul>
-<input id="newTag" placeholder="New tag">
-<button onclick="addTag()">Add</button>
+<b>Breakdown</b>
+<canvas id="pie"></canvas>
+<div id="percent"></div>
 </div>
 
 <div class="card">
 <b>Sessions</b>
-<ul id="sessionList"></ul>
+<ul id="list"></ul>
+</div>
+
+<div class="modal" id="modal">
+<div class="modal-box">
+Start:<br><input type="datetime-local" id="editStart"><br>
+End:<br><input type="datetime-local" id="editEnd"><br><br>
+<button onclick="saveEdit()">Save</button>
+<button onclick="closeModal()">Cancel</button>
+</div>
 </div>
 
 <script>
-let sessions = JSON.parse(localStorage.getItem("sessions"))||[];
-let active = JSON.parse(localStorage.getItem("active"))||null;
-let tags = JSON.parse(localStorage.getItem("tags"))||["Work","Study"];
+let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
+let active=JSON.parse(localStorage.getItem('active'))||null;
+let tags=JSON.parse(localStorage.getItem('tags'))||['Work','Study'];
+let colors=JSON.parse(localStorage.getItem('colors'))||{};
+let editIndex=null;
 
 function save(){
-localStorage.setItem("sessions",JSON.stringify(sessions));
-localStorage.setItem("active",JSON.stringify(active));
-localStorage.setItem("tags",JSON.stringify(tags));
+localStorage.setItem('sessions',JSON.stringify(sessions));
+localStorage.setItem('active',JSON.stringify(active));
+localStorage.setItem('tags',JSON.stringify(tags));
+localStorage.setItem('colors',JSON.stringify(colors));
 }
 
 function renderTags(){
-let sel=document.getElementById("tag");
-sel.innerHTML="";
-tags.forEach(t=>{
-let o=document.createElement("option");o.text=t;sel.add(o);
+let sel=document.getElementById('tag');
+sel.innerHTML='';
+tags.forEach(t=>{let o=document.createElement('option');o.text=t;sel.add(o);});
+}
+
+function setTagColor(){colors[getTag()]=tagColor.value;save();render();}
+function getTag(){return document.getElementById('tag').value;}
+
+function startSession(){if(active)return;active={start:Date.now(),tag:getTag()};save();}
+function stopSession(){if(!active)return;sessions.push({start:active.start,end:Date.now(),tag:active.tag});active=null;save();render();}
+
+function filterRange(){let d=parseInt(range.value);let cut=Date.now()-d*86400000;return sessions.filter(s=>s.start>=cut);} 
+
+function buildStacked(){
+let data=filterRange();
+let days={};
+let tagSet=new Set();
+
+data.forEach(s=>{
+let day=new Date(s.start).toDateString();
+tagSet.add(s.tag);
+if(!days[day])days[day]={};
+days[day][s.tag]=(days[day][s.tag]||0)+(s.end-s.start)/3600000;
 });
 
-let list=document.getElementById("tagList");
-list.innerHTML="";
-tags.forEach((t,i)=>{
-let li=document.createElement("li");
-li.innerHTML=`${t} <button onclick="renameTag(${i})">Edit</button>`;
-list.appendChild(li);
+let labels=Object.keys(days);
+let tagsArr=[...tagSet];
+
+let datasets=tagsArr.map(t=>({
+label:t,
+data:labels.map(d=>days[d][t]||0),
+backgroundColor:colors[t]||'#888'
+}));
+
+new Chart(chart,{type:'bar',data:{labels,datasets},options:{scales:{x:{stacked:true},y:{stacked:true}}}});
+}
+
+function buildPie(){
+let map={};let total=0;
+filterRange().forEach(s=>{
+let d=(s.end-s.start)/60000;
+map[s.tag]=(map[s.tag]||0)+d; total+=d;
 });
+let labels=Object.keys(map);
+let values=Object.values(map);
+new Chart(pie,{type:'pie',data:{labels,datasets:[{data:values,backgroundColor:labels.map(l=>colors[l]||'#888')}]}});
+
+let html='';let topTag='';let max=0;
+labels.forEach((l,i)=>{
+let pct=((values[i]/total)*100).toFixed(1);
+html+=`${l}: ${pct}%<br>`;
+if(values[i]>max){max=values[i];topTag=l;}
+});
+percent.innerHTML=html;
+top.innerHTML=topTag?`${topTag} (${((max/total)*100).toFixed(1)}%)`:'';
 }
 
-function addTag(){
-let v=document.getElementById("newTag").value;
-if(v){tags.push(v);save();renderTags();}
-}
-
-function renameTag(i){
-let n=prompt("Rename tag",tags[i]);
-if(n){tags[i]=n;save();renderTags();}
-}
-
-function startSession(){
-if(active)return;
-active={start:Date.now(),tag:getTag()};
-save();render();
-}
-
-function stopSession(){
-if(!active)return;
-let end=Date.now();
-let last=sessions[sessions.length-1];
-if(last && Math.abs(last.end-end)<60000){active=null;save();render();return;}
-sessions.push({start:active.start,end:end,tag:active.tag});
-active=null;save();render();
-}
-
-function getTag(){return document.getElementById("tag").value;}
-
-function editSession(i){
-let s=sessions[i];
-let newStart=prompt("Start (timestamp)",s.start);
-let newEnd=prompt("End (timestamp)",s.end);
-if(newStart && newEnd){
-s.start=parseInt(newStart);
-s.end=parseInt(newEnd);
-sessions[i]=s;save();render();
-}
-}
-
-function renderSessions(){
-let list=document.getElementById("sessionList");
-list.innerHTML="";
+function renderList(){
+list.innerHTML='';
 sessions.slice().reverse().forEach((s,i)=>{
-let li=document.createElement("li");
+let li=document.createElement('li');
 let dur=Math.round((s.end-s.start)/60000);
-li.innerHTML=`${s.tag} • ${dur}m <button onclick="editSession(${sessions.length-1-i})">Edit</button>`;
+li.innerHTML=`${s.tag} • ${dur}m <button onclick="openEdit(${sessions.length-1-i})">Edit</button>`;
 list.appendChild(li);
 });
 }
 
-function calcToday(){
-let total=0;let today=new Date().toDateString();
-sessions.forEach(s=>{
-let d=new Date(s.start);
-if(d.toDateString()===today){total+=(s.end-s.start);} });
-let h=Math.floor(total/3600000);
-let m=Math.floor((total%3600000)/60000);
-document.getElementById("today").innerText=`Today: ${h}h ${m}m`;
+function openEdit(i){
+editIndex=i;
+let s=sessions[i];
+editStart.value=new Date(s.start).toISOString().slice(0,16);
+editEnd.value=new Date(s.end).toISOString().slice(0,16);
+modal.style.display='flex';
 }
 
-function buildChart(){
-let days=parseInt(document.getElementById("range").value);
-let map={};
-for(let i=days-1;i>=0;i--){
-let d=new Date();d.setDate(d.getDate()-i);
-map[d.toDateString()]=0;
-}
-sessions.forEach(s=>{
-let k=new Date(s.start).toDateString();
-if(map[k]!=null){map[k]+=(s.end-s.start)/3600000;}
-});
-new Chart(document.getElementById("chart"),{
-type:'bar',
-data:{labels:Object.keys(map),datasets:[{data:Object.values(map)}]}
-});
+function closeModal(){modal.style.display='none';}
+
+function saveEdit(){
+let s=sessions[editIndex];
+s.start=new Date(editStart.value).getTime();
+s.end=new Date(editEnd.value).getTime();
+sessions[editIndex]=s;
+save();closeModal();render();
 }
 
 function render(){
-document.getElementById("status").innerText=active?"Running...":"Idle";
-document.getElementById("chart").replaceWith(document.getElementById("chart").cloneNode());
-calcToday();renderSessions();buildChart();
+chart.replaceWith(chart.cloneNode());
+pie.replaceWith(pie.cloneNode());
+buildStacked();buildPie();renderList();
 }
 
 renderTags();render();
@@ -171,4 +177,3 @@ renderTags();render();
 
 </body>
 </html>
-
