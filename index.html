@@ -10,12 +10,26 @@
   --text:#e6e6e6;
   --muted:#9aa0a6;
   --accent:#2f6df6;
+  --glow:#5b8cff;
 }
 
 body{font-family:-apple-system;background:var(--bg);color:var(--text);margin:0}
 .card{background:var(--card);margin:12px;padding:14px;border-radius:16px}
-button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;background:var(--accent);color:#fff}
-.square{width:80px;height:80px;border-radius:12px;font-size:14px}
+button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.2s ease}
+.square{width:80px;height:80px;border-radius:12px;font-size:14px;position:relative}
+
+/* Active animation */
+.active{
+  box-shadow:0 0 0 0 var(--glow);
+  animation:pulse 1.5s infinite;
+}
+
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(91,140,255,0.6)}
+  70%{box-shadow:0 0 0 16px rgba(91,140,255,0)}
+  100%{box-shadow:0 0 0 0 rgba(91,140,255,0)}
+}
+
 input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:#111;color:var(--text)}
 .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 </style>
@@ -23,8 +37,8 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <body>
 
 <div class="card">
-<button class="square" onclick="startSession()">Start</button>
-<button class="square" onclick="stopSession()">Stop</button>
+<button id="startBtn" class="square" onclick="startSession()">Start</button>
+<button id="stopBtn" class="square" onclick="stopSession()">Stop</button>
 </div>
 
 <div class="card">
@@ -51,8 +65,22 @@ function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
 function cloneSessions(){return JSON.parse(JSON.stringify(sessions));}
 function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
 
+function setRunningUI(running){
+  const startBtn=document.getElementById('startBtn');
+  const stopBtn=document.getElementById('stopBtn');
+
+  if(running){
+    startBtn.classList.add('active');
+    stopBtn.classList.remove('active');
+  }else{
+    startBtn.classList.remove('active');
+    stopBtn.classList.add('active');
+  }
+}
+
 function startSession(){
   active={start:Date.now()};
+  setRunningUI(true);
   alert('Started');
 }
 
@@ -62,6 +90,7 @@ function stopSession(){
   let end=Date.now();
   sessions.push({start:round15(active.start),end:round15(end)});
   active=null;
+  setRunningUI(false);
   save();
   renderSessions();
   alert('Saved');
@@ -77,18 +106,31 @@ function filterRange(){
 
 function formatTime(ts){
   let d=new Date(ts);
-  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false});
+});
 }
 
 function buildCSV(data){
-  let rows=[["Date","Start","End","Minutes"]];
+  let rows=[["Date","Start","End","Hours"]];
   let total=0;
+
   data.forEach(s=>{
     let d=new Date(s.start).toLocaleDateString();
-    let dur=(s.end-s.start)/60000;
+    let dur=(s.end-s.start)/3600000;
     total+=dur;
-    rows.push([d,formatTime(s.start),formatTime(s.end),Math.round(dur)]);
+
+    rows.push([
+      d,
+      formatTime(s.start),
+      formatTime(s.end),
+      dur.toFixed(2)
+    ]);
   });
+
+  rows.push(["TOTAL","","",total.toFixed(2)]);
+  return rows.map(r=>r.join(",")).join("
+");
+});
   rows.push(["TOTAL","","",Math.round(total)]);
   return rows.map(r=>r.join(",")).join("\n");
 }
@@ -102,8 +144,19 @@ function exportCSV(){
   a.click();
 }
 
-function toTimeInput(ts){return new Date(ts).toISOString().slice(11,16);} 
-function toDateInput(ts){return new Date(ts).toISOString().slice(0,10);} 
+function toTimeInput(ts){
+  let d=new Date(ts);
+  let h=d.getHours().toString().padStart(2,'0');
+  let m=d.getMinutes().toString().padStart(2,'0');
+  return `${h}:${m}`;
+} 
+function toDateInput(ts){
+  let d=new Date(ts);
+  let y=d.getFullYear();
+  let m=(d.getMonth()+1).toString().padStart(2,'0');
+  let day=d.getDate().toString().padStart(2,'0');
+  return `${y}-${m}-${day}`;
+} 
 
 function renderSessions(){
   let list=document.getElementById('sessionList');
@@ -116,7 +169,7 @@ function renderSessions(){
       <input type="time" value="${toTimeInput(s.start)}" onchange="editTime(${i},'start',this.value)">
       -
       <input type="time" value="${toTimeInput(s.end)}" onchange="editTime(${i},'end',this.value)">
-      (${Math.round((s.end-s.start)/60000)}m)
+      (${((s.end-s.start)/3600000).toFixed(2)}h)
       <button onclick="deleteSession(${i})">X</button>
     `;
     list.appendChild(li);
