@@ -2,26 +2,22 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Time Logger Final</title>
+<title>Time Logger Pro v2</title>
 <style>
 body{font-family:-apple-system;background:#f2f2f7;margin:0}
 .card{background:#fff;margin:12px;padding:14px;border-radius:16px}
-button{padding:10px;border-radius:10px;border:none;margin:4px}
+button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer}
 .big{width:80px;height:80px;border-radius:50%}
 .start{background:#34c759;color:#fff}
 .stop{background:#ff3b30;color:#fff}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 16px;border-radius:20px;opacity:0;transition:.3s}
-.toast.show{opacity:1}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:6px;border-bottom:1px solid #eee}
+.tag-color{width:16px;height:16px;display:inline-block;border-radius:4px;margin-right:6px}
 </style>
 </head>
 <body>
 
 <div class="card">
 <select id="tag"></select>
-<input type="color" id="color" onchange="setColor()">
-<button onclick="renameTag()">Rename</button>
+<button onclick="editTag()">Edit Tag</button>
 <button class="big start" onclick="startSession()">Start</button>
 <button class="big stop" onclick="stopSession()">Stop</button>
 </div>
@@ -31,159 +27,151 @@ th,td{padding:6px;border-bottom:1px solid #eee}
 <input type="date" id="from">
 <input type="date" id="to"><br>
 <button onclick="previewExport()">Preview</button>
-<button onclick="exportCSV()">CSV</button>
-<button onclick="exportJSON()">JSON</button>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="exportJSON()">Export JSON</button>
 </div>
 
 <div class="card">
-<b>Sessions</b>
-<ul id="list"></ul>
+<b>Delete specific session</b><br>
+<ul id="sessionList"></ul>
 </div>
 
-<div class="card" id="preview"></div>
-<div class="toast" id="toast"></div>
+<div class="card" id="previewBox"></div>
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
-let tags=JSON.parse(localStorage.getItem('tags'))||['Work','Study'];
-let colors=JSON.parse(localStorage.getItem('colors'))||{};
 let active=null;
+let tags=JSON.parse(localStorage.getItem('tags'))||[
+  {name:'Work',color:'#34c759'},
+  {name:'Study',color:'#007aff'}
+];
 
 function save(){
-localStorage.setItem('sessions',JSON.stringify(sessions));
-localStorage.setItem('tags',JSON.stringify(tags));
-localStorage.setItem('colors',JSON.stringify(colors));
-}
-
-function toast(msg){
-let t=document.getElementById('toast');
-t.innerText=msg;
-t.classList.add('show');
-setTimeout(()=>t.classList.remove('show'),2000);
+  localStorage.setItem('sessions',JSON.stringify(sessions));
+  localStorage.setItem('tags',JSON.stringify(tags));
 }
 
 function renderTags(){
-let sel=tag;
-sel.innerHTML='';
-tags.forEach(t=>{
-let o=document.createElement('option');o.text=t;sel.add(o);
-});
+  let sel=document.getElementById('tag');
+  sel.innerHTML='';
+  tags.forEach(t=>{
+    let o=document.createElement('option');
+    o.value=t.name;
+    o.text=t.name;
+    sel.add(o);
+  });
 }
 
-function setColor(){colors[getTag()]=color.value;save();toast('Color updated');}
+function editTag(){
+  let current=getTag();
+  let t=tags.find(x=>x.name===current);
+  let newName=prompt('Rename tag',t.name);
+  let newColor=prompt('Color (hex)',t.color);
+  if(!newName)return;
 
-function renameTag(){
-let old=getTag();
-let n=prompt('Rename',old);
-if(!n)return;
-tags=tags.map(t=>t===old?n:t);
-sessions.forEach(s=>{if(s.tag===old)s.tag=n});
-save();renderTags();toast('Renamed');
+  t.name=newName;
+  t.color=newColor||t.color;
+
+  sessions.forEach(s=>{if(s.tag===current)s.tag=newName});
+  save();renderTags();alert('Tag updated');
 }
 
-function getTag(){return tag.value}
+function getTag(){return document.getElementById('tag').value}
 
-function round15(ts){
-let d=new Date(ts);
-let m=d.getMinutes();
-if(m>52){d.setHours(d.getHours()+1);d.setMinutes(0);}
-else d.setMinutes(Math.round(m/15)*15);
-d.setSeconds(0);d.setMilliseconds(0);
-return d.getTime();
+function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
+
+function startSession(){
+  active={start:Date.now(),tag:getTag()};
+  alert('Started');
 }
-
-function startSession(){active={start:Date.now(),tag:getTag()};toast('Started');}
 
 function stopSession(){
-if(!active)return;
-sessions.push({start:round15(active.start),end:round15(Date.now()),tag:active.tag});
-active=null;save();render();toast('Saved');
+  if(!active)return alert('No active session');
+  let end=Date.now();
+  let s={start:round15(active.start),end:round15(end),tag:active.tag};
+  sessions.push(s);
+  active=null;
+  save();
+  renderSessions();
+  alert('Saved');
 }
 
 function filterRange(){
-let f=new Date(from.value).getTime();
-let t=new Date(to.value).getTime();
-return sessions.filter(s=>s.start>=f && s.end<=t);
+  let from=new Date(document.getElementById('from').value).getTime();
+  let to=new Date(document.getElementById('to').value).getTime()+86400000;
+  return sessions.filter(s=>s.start>=from && s.end<=to);
+}
+
+function formatTime(ts){
+  let d=new Date(ts);
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 }
 
 function buildCSV(data){
-let rows=[];
-let daily={};
-let total=0;
+  let rows=[["Date","Start","End","Minutes","Tag"]];
+  let total=0;
 
-data.forEach(s=>{
-let date=new Date(s.start).toLocaleDateString();
-let start=new Date(s.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-let end=new Date(s.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-let dur=(s.end-s.start)/60000;
+  data.forEach(s=>{
+    let d=new Date(s.start).toLocaleDateString();
+    let dur=(s.end-s.start)/60000;
+    total+=dur;
+    rows.push([
+      d,
+      formatTime(s.start),
+      formatTime(s.end),
+      Math.round(dur),
+      s.tag
+    ]);
+  });
 
-rows.push([date,start,end,Math.round(dur),s.tag]);
-
-if(!daily[date])daily[date]=0;
-daily[date]+=dur;
-total+=dur;
-});
-
-let csv="Date,Start,End,Minutes,Tag\n";
-rows.forEach(r=>csv+=r.join(',')+"\n");
-
-csv+="\nDaily Summary\n";
-for(let d in daily)csv+=`${d},${Math.round(daily[d])}\n`;
-
-csv+=`TOTAL,${Math.round(total)}`;
-return csv;
+  rows.push(["TOTAL","","",Math.round(total),""]);
+  return rows.map(r=>r.join(",")).join("\n");
 }
 
 function previewExport(){
-let data=filterRange();
-let csv=buildCSV(data);
-let lines=csv.split('\n');
-let html='<table>';
-lines.forEach(l=>{
-let cols=l.split(',');
-html+='<tr>';
-cols.forEach(c=>html+=`<td>${c}</td>`);
-html+='</tr>';
-});
-html+='</table>';
-preview.innerHTML=html;
+  let data=filterRange();
+  let csv=buildCSV(data);
+  document.getElementById('previewBox').innerText=csv;
 }
 
 function exportCSV(){
-let csv=buildCSV(filterRange());
-let blob=new Blob([csv],{type:'text/csv'});
-let file=new File([blob],'log.csv');
-if(navigator.share)navigator.share({files:[file]});
-else{
-let a=document.createElement('a');
-a.href=URL.createObjectURL(blob);
-a.download='log.csv';a.click();}
+  let csv=buildCSV(filterRange());
+  let blob=new Blob([csv],{type:'text/csv'});
+  let a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='timelog.csv';
+  a.click();
 }
 
 function exportJSON(){
-let json=JSON.stringify({sessions});
-let blob=new Blob([json],{type:'application/json'});
-let file=new File([blob],'log.json');
-if(navigator.share)navigator.share({files:[file]});
-else{
-let a=document.createElement('a');
-a.href=URL.createObjectURL(blob);
-a.download='log.json';a.click();}
+  let data=filterRange();
+  let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  let a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='timelog.json';
+  a.click();
 }
 
-function render(){
-list.innerHTML='';
-sessions.slice().reverse().forEach((s,i)=>{
-let li=document.createElement('li');
-let dur=Math.round((s.end-s.start)/60000);
-li.innerHTML=`${s.tag} ${dur}m <button onclick="del(${sessions.length-1-i})">X</button>`;
-list.appendChild(li);
-});
+function renderSessions(){
+  let list=document.getElementById('sessionList');
+  list.innerHTML='';
+
+  sessions.forEach((s,i)=>{
+    let li=document.createElement('li');
+    li.innerHTML=`${new Date(s.start).toLocaleDateString()} ${formatTime(s.start)} - ${formatTime(s.end)} (${s.tag}) <button onclick="deleteSession(${i})">X</button>`;
+    list.appendChild(li);
+  });
 }
 
-function del(i){sessions.splice(i,1);save();render();toast('Deleted session');}
+function deleteSession(i){
+  sessions.splice(i,1);
+  save();
+  renderSessions();
+  alert('Deleted');
+}
 
-renderTags();render();
+renderTags();
+renderSessions();
 </script>
 
 </body>
