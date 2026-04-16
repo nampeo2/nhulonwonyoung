@@ -51,7 +51,6 @@ function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
 function cloneSessions(){return JSON.parse(JSON.stringify(sessions));}
 function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
 
-// FIX 1: luôn dùng local time thay vì UTC
 function toLocalISOString(date){
   const tzOffset = date.getTimezoneOffset() * 60000;
   return new Date(date - tzOffset).toISOString();
@@ -73,11 +72,14 @@ function stopSession(){
   alert('Saved');
 }
 
+// FIX range: bao gồm cả ngày bắt đầu
 function filterRange(){
   let fromVal=document.getElementById('from').value;
   let toVal=document.getElementById('to').value;
-  let from=fromVal?new Date(fromVal).getTime():0;
-  let to=toVal?new Date(toVal).getTime()+86400000:Date.now();
+
+  let from=fromVal?new Date(fromVal+"T00:00:00").getTime():0;
+  let to=toVal?new Date(toVal+"T23:59:59").getTime():Date.now();
+
   return sessions.filter(s=>s.start>=from && s.end<=to);
 }
 
@@ -86,24 +88,28 @@ function formatTime(ts){
   return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 }
 
-// FIX 2: hiển thị giờ thay vì phút
 function minutesToHours(mins){
-  return (mins/60).toFixed(2).replace('.', ',');
+  return (mins/60).toFixed(2);
 }
 
 function buildCSV(data){
-  // sort theo ngày tăng dần
   data = data.slice().sort((a,b)=>a.start - b.start);
+
   let rows=[["Date","Start","End","Hours"]];
   let total=0;
+
   data.forEach(s=>{
     let d=new Date(s.start).toLocaleDateString();
     let dur=(s.end-s.start)/60000;
+    dur = Math.round(dur); // làm tròn từng session như trước
     total+=dur;
     rows.push([d,formatTime(s.start),formatTime(s.end),minutesToHours(dur)]);
   });
+
   rows.push(["TOTAL","","",minutesToHours(total)]);
-  return rows.map(r=>r.join(",")).join("\n");
+
+  // dùng dấu ;
+  return rows.map(r=>r.join(";")).join("\n");
 }
 
 function exportCSV(){
@@ -115,7 +121,6 @@ function exportCSV(){
   a.click();
 }
 
-// FIX timezone cho input
 function toTimeInput(ts){
   return toLocalISOString(new Date(ts)).slice(11,16);
 }
@@ -127,7 +132,6 @@ function renderSessions(){
   let list=document.getElementById('sessionList');
   list.innerHTML='';
 
-  // sort theo ngày tăng dần
   sessions.sort((a,b)=>a.start - b.start);
 
   sessions.forEach((s,i)=>{
