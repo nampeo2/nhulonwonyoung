@@ -126,6 +126,10 @@ function toDateInput(ts){
 function renderSessions(){
   let list=document.getElementById('sessionList');
   list.innerHTML='';
+
+  // sort theo ngày tăng dần
+  sessions.sort((a,b)=>a.start - b.start);
+
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
     li.className='row';
