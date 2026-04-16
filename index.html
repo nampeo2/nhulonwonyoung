@@ -8,6 +8,7 @@
   --bg:#0f1115;
   --card:#1c1f26;
   --text:#e6e6e6;
+  --muted:#9aa0a6;
   --accent:#2f6df6;
   --green:#2ecc71;
   --red:#e74c3c;
@@ -16,28 +17,68 @@
 body{font-family:-apple-system;background:var(--bg);color:var(--text);margin:0}
 .card{background:var(--card);margin:12px;padding:14px;border-radius:16px}
 button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;color:#fff;transition:0.2s;background:#3a3f4b}
-button:hover:not(:disabled){filter:brightness(1.1)}
+
+/* primary buttons */
+.start{background:var(--green)}
+.stop{background:var(--red)}
+
+/* secondary buttons */
+button:not(.start):not(.stop){background:#3a3f4b}
+
+/* delete button */
+.delete{background:#a94442}
+.delete:hover{background:#c0392b}
+button:not(.start):not(.stop):hover{background:#4a5160}
 button:disabled{background:#555;cursor:not-allowed;opacity:0.6}
+button:hover:not(:disabled){filter:brightness(1.1)}
+
+.square{width:80px;height:80px;border-radius:12px;font-size:14px}
 
 .start{background:var(--green)}
 .stop{background:var(--red)}
-.delete{background:#a94442}
-.delete:hover{background:#c0392b}
 
-.square{width:80px;height:80px;border-radius:12px;font-size:14px}
 input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:#111;color:var(--text)}
 .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
-.status{font-size:14px;margin-top:8px}
-
-@keyframes slideFadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+/* new item animation */
+@keyframes slideFadeIn{
+  from{opacity:0; transform:translateY(8px);} 
+  to{opacity:1; transform:translateY(0);} 
+}
 .new-item{animation:slideFadeIn 0.25s ease}
 
-@keyframes highlight{from{background:#3a4150;}to{background:transparent;}}
+/* edit highlight */
+@keyframes highlight{
+  from{background:#3a4150;} 
+  to{background:transparent;}
+}
 .highlight{animation:highlight 0.6s ease}
 
-@keyframes fadeOut{from{opacity:1;}to{opacity:0;transform:translateY(-6px);}}
+/* delete animation */
+@keyframes fadeOut{
+  from{opacity:1; transform:translateY(0);} 
+  to{opacity:0; transform:translateY(-6px);} 
+}
 .fade-out{animation:fadeOut 0.25s ease forwards}
+
+.status{font-size:14px;margin-top:8px}
+
+/* animations */
+@keyframes pulse {
+  0%{transform:scale(1);}
+  50%{transform:scale(1.08);}
+  100%{transform:scale(1);}
+}
+
+@keyframes flash {
+  0%{opacity:1;}
+  50%{opacity:0.4;}
+  100%{opacity:1;}
+}
+
+.pulse{animation:pulse 0.3s ease}
+.flash{animation:flash 0.4s ease}
+
 </style>
 </head>
 <body>
@@ -52,14 +93,7 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <b>Export CSV</b><br>
 <input type="date" id="from">
 <input type="date" id="to"><br>
-<button onclick="exportCSV()">⬇️ Export range</button>
-<button onclick="exportAllCSV()">⬇️ Export ALL</button>
-</div>
-
-<div class="card">
-<b>Backup JSON</b><br>
-<button onclick="exportJSON()">💾 Export JSON</button>
-<input type="file" id="importFile" onchange="importJSON(event)">
+<button onclick="exportCSV()">⬇️ Export</button>
 </div>
 
 <div class="card">
@@ -73,7 +107,7 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
 let history=[];
-let lastEditedIndex=null;
+let lastEditedIndex = null;
 
 function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
 function cloneSessions(){return JSON.parse(JSON.stringify(sessions));}
@@ -85,172 +119,198 @@ function toLocalISOString(date){
 }
 
 function startSession(){
-  if(sessions.find(s=>!s.end)) return;
+  let btn = document.getElementById('startBtn');
+  if(btn){
+    btn.classList.add('pulse');
+    setTimeout(()=>btn.classList.remove('pulse'),300);
+  }
+  let open = sessions.find(s=>!s.end);
+  if(open) return;
+
   history.push(cloneSessions());
   sessions.push({start:round15(Date.now()), end:null});
-  save(); renderSessions();
+  save();
+  renderSessions();
 }
 
 function stopSession(){
-  let open=sessions.find(s=>!s.end);
+  let btn = document.getElementById('stopBtn');
+  if(btn){
+    btn.classList.add('flash');
+    setTimeout(()=>btn.classList.remove('flash'),400);
+  }
+  let open = sessions.find(s=>!s.end);
   if(!open) return;
+
   history.push(cloneSessions());
-  open.end=round15(Date.now());
-  save(); renderSessions();
+  open.end = round15(Date.now());
+  save();
+  renderSessions();
+}
+
+function filterRange(){
+  let fromVal=document.getElementById('from').value;
+  let toVal=document.getElementById('to').value;
+
+  let from=fromVal?new Date(fromVal+"T00:00:00").getTime():0;
+  let to=toVal?new Date(toVal+"T23:59:59").getTime():Date.now();
+
+  return sessions.filter(s=>s.start>=from && s.end && s.end<=to);
 }
 
 function formatTime(ts){
-  return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  let d=new Date(ts);
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 }
 
-function minutesToHours(mins){return (mins/60).toFixed(2);}
+function minutesToHours(mins){
+  return (mins/60).toFixed(2);
+}
 
 function buildCSV(data){
-  data=data.slice().sort((a,b)=>a.start-b.start);
+  data = data.slice().sort((a,b)=>a.start - b.start);
+
   let rows=[["Date","Start","End","Hours"]];
   let total=0;
 
   data.forEach(s=>{
+    let d=new Date(s.start).toLocaleDateString();
     let dur=Math.round((s.end-s.start)/60000);
     total+=dur;
-    rows.push([
-      new Date(s.start).toLocaleDateString(),
-      formatTime(s.start),
-      formatTime(s.end),
-      minutesToHours(dur)
-    ]);
+    rows.push([d,formatTime(s.start),formatTime(s.end),minutesToHours(dur)]);
   });
 
   rows.push(["TOTAL","","",minutesToHours(total)]);
-  return "sep=;\n"+rows.map(r=>r.join(";")).join("\n");
+
+  return "sep=;\n" + rows.map(r=>r.join(";")).join("\n");
 }
 
 function exportCSV(){
-  let from=document.getElementById('from').value;
-  let to=document.getElementById('to').value;
-
-  let f=from?new Date(from+"T00:00:00").getTime():0;
-  let t=to?new Date(to+"T23:59:59").getTime():Date.now();
-
-  let data=sessions.filter(s=>s.end && s.start>=f && s.end<=t);
-  download(buildCSV(data),'range.csv');
-}
-
-function exportAllCSV(){
-  let data=sessions.filter(s=>s.end);
-  download(buildCSV(data),'all.csv');
-}
-
-function exportJSON(){
-  let payload={
-    exportedAt:new Date().toISOString(),
-    sessions
-  };
-  download(JSON.stringify(payload,null,2),'backup.json');
-}
-
-function importJSON(e){
-  let file=e.target.files[0];
-  if(!file) return;
-
-  let reader=new FileReader();
-  reader.onload=function(){
-    try{
-      let data=JSON.parse(reader.result);
-      if(!data.sessions) throw 'Invalid file';
-
-      history.push(cloneSessions());
-      sessions=data.sessions;
-
-      save(); renderSessions();
-    }catch(err){
-      alert('Import lỗi');
-    }
-  };
-  reader.readAsText(file);
-}
-
-function download(content,name){
-  let blob=new Blob([content]);
+  let csv=buildCSV(filterRange());
+  let blob=new Blob([csv],{type:'text/csv'});
   let a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=name;
+  a.download='timelog.csv';
   a.click();
 }
 
-function renderSessions(){
-  let startBtn=document.getElementById('startBtn');
-  let stopBtn=document.getElementById('stopBtn');
-  let status=document.getElementById('status');
+function toTimeInput(ts){
+  return toLocalISOString(new Date(ts)).slice(11,16);
+}
+function toDateInput(ts){
+  return toLocalISOString(new Date(ts)).slice(0,10);
+}
 
-  let hasOpen=sessions.some(s=>!s.end);
-  startBtn.disabled=hasOpen;
-  stopBtn.disabled=!hasOpen;
-  status.innerText=hasOpen?"🟢 Đang ghi thời gian":"⚪ Chưa bắt đầu";
+function renderSessions(){
+  let startBtn = document.getElementById('startBtn');
+  let stopBtn = document.getElementById('stopBtn');
+  let status = document.getElementById('status');
+
+  let hasOpen = sessions.some(s=>!s.end);
+
+  if(startBtn) startBtn.disabled = hasOpen;
+  if(stopBtn) stopBtn.disabled = !hasOpen;
+
+  if(status){
+    status.innerText = hasOpen ? "🟢 Đang ghi thời gian" : "⚪ Chưa bắt đầu";
+  }
 
   let list=document.getElementById('sessionList');
   list.innerHTML='';
 
-  sessions.sort((a,b)=>a.start-b.start);
+  sessions.sort((a,b)=>a.start - b.start);
 
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
+
+    // animate item mới (item cuối cùng)
+    if(i === sessions.length - 1){
+      li.classList.add('new-item');
+    }
     li.className='row';
 
-    if(i===sessions.length-1) li.classList.add('new-item');
-    if(i===lastEditedIndex) li.classList.add('highlight');
-
     if(!s.end){
-      li.style.background='#2a2f3a';
-      li.style.borderRadius='8px';
-      li.style.padding='4px';
+      li.style.background = '#2a2f3a';
+      li.style.borderRadius = '8px';
+      li.style.padding = '4px';
     }
 
-    let mins=s.end?Math.round((s.end-s.start)/60000):0;
+    let mins = s.end ? Math.round((s.end-s.start)/60000) : 0;
 
     li.innerHTML=`
-      <input type="date" value="${toLocalISOString(new Date(s.start)).slice(0,10)}" onchange="editDate(${i}, this.value)">
-      <input type="time" value="${toLocalISOString(new Date(s.start)).slice(11,16)}" onchange="editTime(${i},'start',this.value)">
+      <input type="date" value="${toDateInput(s.start)}" onchange="editDate(${i}, this.value)">
+      <input type="time" value="${toTimeInput(s.start)}" onchange="editTime(${i},'start',this.value)">
       -
-      <input type="time" value="${s.end?toLocalISOString(new Date(s.end)).slice(11,16):''}" onchange="editTime(${i},'end',this.value)">
+      <input type="time" value="${s.end?toTimeInput(s.end):''}" onchange="editTime(${i},'end',this.value)">
       (${s.end?minutesToHours(mins)+'h':'...'})
       <button class="delete" onclick="deleteSession(${i})">🗑</button>
     `;
+    
+    // highlight nếu vừa edit
+    if(i === lastEditedIndex){
+      li.classList.add('highlight');
+    }
+
     list.appendChild(li);
   });
 }
 
-function editDate(i,v){lastEditedIndex=i;history.push(cloneSessions());
+function editDate(i,value){
+  lastEditedIndex = i;
+  history.push(cloneSessions());
   let s=sessions[i];
-  let d=new Date(s.start);
-  let [y,m,day]=v.split('-');
-  d.setFullYear(y,m-1,day);
-  s.start=round15(d.getTime());
-  if(s.end){let e=new Date(s.end);e.setFullYear(y,m-1,day);s.end=round15(e.getTime());}
-  save();renderSessions();}
+  let start=new Date(s.start);
+  let [y,m,d]=value.split('-');
+  start.setFullYear(y, m-1, d);
+  s.start=round15(start.getTime());
 
-function editTime(i,type,v){lastEditedIndex=i;history.push(cloneSessions());
+  if(s.end){
+    let end=new Date(s.end);
+    end.setFullYear(y, m-1, d);
+    s.end=round15(end.getTime());
+  }
+
+  save();
+  renderSessions();
+}
+
+function editTime(i,type,value){
+  lastEditedIndex = i;
+  history.push(cloneSessions());
   let s=sessions[i];
-  let d=new Date(type==='start'?s.start:(s.end||s.start));
-  let [h,m]=v.split(':');
-  d.setHours(h);d.setMinutes(m);
-  if(type==='start')s.start=round15(d.getTime());else s.end=round15(d.getTime());
-  save();renderSessions();}
+
+  let base = new Date(type==='start'?s.start:(s.end||s.start));
+  let [h,m]=value.split(':');
+  base.setHours(h); base.setMinutes(m);
+
+  if(type==='start') s.start=round15(base.getTime());
+  else s.end=round15(base.getTime());
+
+  save();
+  renderSessions();
+}
 
 function deleteSession(i){
   let list=document.getElementById('sessionList');
   let item=list.children[i];
+
   if(item){
     item.classList.add('fade-out');
     setTimeout(()=>{
       history.push(cloneSessions());
       sessions.splice(i,1);
-      save();renderSessions();
+      save();
+      renderSessions();
     },250);
   }
 }
 
-function undo(){if(history.length===0)return; sessions=history.pop(); save(); renderSessions();}
+function undo(){
+  if(history.length===0)return alert('Nothing to undo');
+  sessions=history.pop();
+  save();
+  renderSessions();
+}
 
 renderSessions();
 </script>
