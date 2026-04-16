@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Time Logger Pro v2</title>
+<title>Time Logger Pro v3</title>
 <style>
 body{font-family:-apple-system;background:#f2f2f7;margin:0}
 .card{background:#fff;margin:12px;padding:14px;border-radius:16px}
@@ -10,85 +10,55 @@ button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer}
 .big{width:80px;height:80px;border-radius:50%}
 .start{background:#34c759;color:#fff}
 .stop{background:#ff3b30;color:#fff}
-.tag-color{width:16px;height:16px;display:inline-block;border-radius:4px;margin-right:6px}
+input{padding:6px;margin:4px;border-radius:6px;border:1px solid #ccc}
 </style>
 </head>
 <body>
 
 <div class="card">
-<select id="tag"></select>
-<button onclick="editTag()">Edit Tag</button>
 <button class="big start" onclick="startSession()">Start</button>
 <button class="big stop" onclick="stopSession()">Stop</button>
+<button onclick="undo()">Undo</button>
 </div>
 
 <div class="card">
-<b>Export</b><br>
+<b>Export CSV</b><br>
 <input type="date" id="from">
 <input type="date" id="to"><br>
-<button onclick="previewExport()">Preview</button>
-<button onclick="exportCSV()">Export CSV</button>
-<button onclick="exportJSON()">Export JSON</button>
+<button onclick="exportCSV()">Export</button>
 </div>
 
 <div class="card">
-<b>Delete specific session</b><br>
+<b>Sessions</b>
 <ul id="sessionList"></ul>
 </div>
-
-<div class="card" id="previewBox"></div>
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
 let active=null;
-let tags=JSON.parse(localStorage.getItem('tags'))||[
-  {name:'Work',color:'#34c759'},
-  {name:'Study',color:'#007aff'}
-];
+let history=[]; // for undo
 
 function save(){
   localStorage.setItem('sessions',JSON.stringify(sessions));
-  localStorage.setItem('tags',JSON.stringify(tags));
 }
 
-function renderTags(){
-  let sel=document.getElementById('tag');
-  sel.innerHTML='';
-  tags.forEach(t=>{
-    let o=document.createElement('option');
-    o.value=t.name;
-    o.text=t.name;
-    sel.add(o);
-  });
+function cloneSessions(){
+  return JSON.parse(JSON.stringify(sessions));
 }
-
-function editTag(){
-  let current=getTag();
-  let t=tags.find(x=>x.name===current);
-  let newName=prompt('Rename tag',t.name);
-  let newColor=prompt('Color (hex)',t.color);
-  if(!newName)return;
-
-  t.name=newName;
-  t.color=newColor||t.color;
-
-  sessions.forEach(s=>{if(s.tag===current)s.tag=newName});
-  save();renderTags();alert('Tag updated');
-}
-
-function getTag(){return document.getElementById('tag').value}
 
 function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
 
 function startSession(){
-  active={start:Date.now(),tag:getTag()};
+  active={start:Date.now()};
   alert('Started');
 }
 
 function stopSession(){
   if(!active)return alert('No active session');
+  history.push(cloneSessions());
+
   let end=Date.now();
-  let s={start:round15(active.start),end:round15(end),tag:active.tag};
+  let s={start:round15(active.start),end:round15(end)};
   sessions.push(s);
   active=null;
   save();
@@ -97,8 +67,12 @@ function stopSession(){
 }
 
 function filterRange(){
-  let from=new Date(document.getElementById('from').value).getTime();
-  let to=new Date(document.getElementById('to').value).getTime()+86400000;
+  let fromVal=document.getElementById('from').value;
+  let toVal=document.getElementById('to').value;
+
+  let from=fromVal?new Date(fromVal).getTime():0;
+  let to=toVal?new Date(toVal).getTime()+86400000:Date.now();
+
   return sessions.filter(s=>s.start>=from && s.end<=to);
 }
 
@@ -108,30 +82,24 @@ function formatTime(ts){
 }
 
 function buildCSV(data){
-  let rows=[["Date","Start","End","Minutes","Tag"]];
+  let rows=[["Date","Start","End","Minutes"]];
   let total=0;
 
   data.forEach(s=>{
     let d=new Date(s.start).toLocaleDateString();
     let dur=(s.end-s.start)/60000;
     total+=dur;
+
     rows.push([
       d,
       formatTime(s.start),
       formatTime(s.end),
-      Math.round(dur),
-      s.tag
+      Math.round(dur)
     ]);
   });
 
-  rows.push(["TOTAL","","",Math.round(total),""]);
+  rows.push(["TOTAL","","",Math.round(total)]);
   return rows.map(r=>r.join(",")).join("\n");
-}
-
-function previewExport(){
-  let data=filterRange();
-  let csv=buildCSV(data);
-  document.getElementById('previewBox').innerText=csv;
 }
 
 function exportCSV(){
@@ -143,34 +111,62 @@ function exportCSV(){
   a.click();
 }
 
-function exportJSON(){
-  let data=filterRange();
-  let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  let a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='timelog.json';
-  a.click();
-}
-
 function renderSessions(){
   let list=document.getElementById('sessionList');
   list.innerHTML='';
 
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
-    li.innerHTML=`${new Date(s.start).toLocaleDateString()} ${formatTime(s.start)} - ${formatTime(s.end)} (${s.tag}) <button onclick="deleteSession(${i})">X</button>`;
+    li.innerHTML=`
+      ${new Date(s.start).toLocaleDateString()} 
+      <input type="time" value="${toTimeInput(s.start)}" onchange="editTime(${i},'start',this.value)">
+      -
+      <input type="time" value="${toTimeInput(s.end)}" onchange="editTime(${i},'end',this.value)">
+      (${Math.round((s.end-s.start)/60000)}m)
+      <button onclick="deleteSession(${i})">X</button>
+    `;
     list.appendChild(li);
   });
 }
 
+function toTimeInput(ts){
+  let d=new Date(ts);
+  return d.toISOString().slice(11,16);
+}
+
+function editTime(i,type,value){
+  history.push(cloneSessions());
+
+  let s=sessions[i];
+  let d=new Date(type==='start'?s.start:s.end);
+
+  let [h,m]=value.split(':');
+  d.setHours(h);
+  d.setMinutes(m);
+
+  if(type==='start') s.start=round15(d.getTime());
+  else s.end=round15(d.getTime());
+
+  save();
+  renderSessions();
+}
+
 function deleteSession(i){
+  history.push(cloneSessions());
   sessions.splice(i,1);
   save();
   renderSessions();
   alert('Deleted');
 }
 
-renderTags();
+function undo(){
+  if(history.length===0)return alert('Nothing to undo');
+  sessions=history.pop();
+  save();
+  renderSessions();
+  alert('Undo done');
+}
+
 renderSessions();
 </script>
 
