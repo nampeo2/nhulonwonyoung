@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Giờ Làm</title>
+<title>Time Logger Pro v3.3</title>
 <style>
 :root{
   --bg:#0f1115;
@@ -95,6 +95,7 @@ function setRunningUI(running){
 }
 
 function startSession(){
+  if(active) return alert('Already running');
   active={start:Date.now()};
   setRunningUI(true);
   alert('Started');
@@ -109,6 +110,7 @@ function stopSession(){
   setRunningUI(false);
   save();
   renderSessions();
+setRunningUI(false);
   alert('Saved');
 }
 
