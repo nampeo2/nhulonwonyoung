@@ -10,22 +10,71 @@
   --text:#e6e6e6;
   --muted:#9aa0a6;
   --accent:#2f6df6;
+  --green:#2ecc71;
+  --red:#e74c3c;
 }
 
 body{font-family:-apple-system;background:var(--bg);color:var(--text);margin:0}
 .card{background:var(--card);margin:12px;padding:14px;border-radius:16px}
-button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;background:var(--accent);color:#fff}
-button:disabled{background:#555;cursor:not-allowed}
+button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;color:#fff;transition:0.2s}
+button:disabled{background:#555;cursor:not-allowed;opacity:0.6}
+button:hover:not(:disabled){filter:brightness(1.1)}
+
 .square{width:80px;height:80px;border-radius:12px;font-size:14px}
+
+.start{background:var(--green)}
+.stop{background:var(--red)}
+
 input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:#111;color:var(--text)}
 .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+/* new item animation */
+@keyframes slideFadeIn{
+  from{opacity:0; transform:translateY(8px);} 
+  to{opacity:1; transform:translateY(0);} 
+}
+.new-item{animation:slideFadeIn 0.25s ease}
+
+/* edit highlight */
+@keyframes highlight{
+  from{background:#3a4150;} 
+  to{background:transparent;}
+}
+.highlight{animation:highlight 0.6s ease}
+
+/* delete animation */
+@keyframes fadeOut{
+  from{opacity:1; transform:translateY(0);} 
+  to{opacity:0; transform:translateY(-6px);} 
+}
+.fade-out{animation:fadeOut 0.25s ease forwards}
+
+.status{font-size:14px;margin-top:8px}
+
+/* animations */
+@keyframes pulse {
+  0%{transform:scale(1);}
+  50%{transform:scale(1.08);}
+  100%{transform:scale(1);}
+}
+
+@keyframes flash {
+  0%{opacity:1;}
+  50%{opacity:0.4;}
+  100%{opacity:1;}
+}
+
+.pulse{animation:pulse 0.3s ease}
+.flash{animation:flash 0.4s ease}
+
 </style>
 </head>
 <body>
 
 <div class="card">
-<button id="startBtn" class="square" onclick="startSession()">Start</button>
-<button class="square" onclick="stopSession()">Stop</button>
+<button id="startBtn" class="square start" onclick="startSession()">Start</button>
+<button id="stopBtn" class="square stop" onclick="stopSession()">Stop</button>
+<div id="status" class="status"></div>
 </div>
 
 <div class="card">
@@ -46,6 +95,7 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
 let history=[];
+let lastEditedIndex = null;
 
 function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
 function cloneSessions(){return JSON.parse(JSON.stringify(sessions));}
@@ -57,6 +107,11 @@ function toLocalISOString(date){
 }
 
 function startSession(){
+  let btn = document.getElementById('startBtn');
+  if(btn){
+    btn.classList.add('pulse');
+    setTimeout(()=>btn.classList.remove('pulse'),300);
+  }
   let open = sessions.find(s=>!s.end);
   if(open) return;
 
@@ -67,8 +122,13 @@ function startSession(){
 }
 
 function stopSession(){
+  let btn = document.getElementById('stopBtn');
+  if(btn){
+    btn.classList.add('flash');
+    setTimeout(()=>btn.classList.remove('flash'),400);
+  }
   let open = sessions.find(s=>!s.end);
-  if(!open) return alert('Không có session đang mở');
+  if(!open) return;
 
   history.push(cloneSessions());
   open.end = round15(Date.now());
@@ -131,8 +191,17 @@ function toDateInput(ts){
 
 function renderSessions(){
   let startBtn = document.getElementById('startBtn');
+  let stopBtn = document.getElementById('stopBtn');
+  let status = document.getElementById('status');
+
   let hasOpen = sessions.some(s=>!s.end);
+
   if(startBtn) startBtn.disabled = hasOpen;
+  if(stopBtn) stopBtn.disabled = !hasOpen;
+
+  if(status){
+    status.innerText = hasOpen ? "🟢 Đang ghi thời gian" : "⚪ Chưa bắt đầu";
+  }
 
   let list=document.getElementById('sessionList');
   list.innerHTML='';
@@ -141,6 +210,11 @@ function renderSessions(){
 
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
+
+    // animate item mới (item cuối cùng)
+    if(i === sessions.length - 1){
+      li.classList.add('new-item');
+    }
     li.className='row';
 
     if(!s.end){
@@ -159,11 +233,18 @@ function renderSessions(){
       (${s.end?minutesToHours(mins)+'h':'...'})
       <button onclick="deleteSession(${i})">X</button>
     `;
+    
+    // highlight nếu vừa edit
+    if(i === lastEditedIndex){
+      li.classList.add('highlight');
+    }
+
     list.appendChild(li);
   });
 }
 
 function editDate(i,value){
+  lastEditedIndex = i;
   history.push(cloneSessions());
   let s=sessions[i];
   let start=new Date(s.start);
@@ -182,6 +263,7 @@ function editDate(i,value){
 }
 
 function editTime(i,type,value){
+  lastEditedIndex = i;
   history.push(cloneSessions());
   let s=sessions[i];
 
@@ -197,10 +279,18 @@ function editTime(i,type,value){
 }
 
 function deleteSession(i){
-  history.push(cloneSessions());
-  sessions.splice(i,1);
-  save();
-  renderSessions();
+  let list=document.getElementById('sessionList');
+  let item=list.children[i];
+
+  if(item){
+    item.classList.add('fade-out');
+    setTimeout(()=>{
+      history.push(cloneSessions());
+      sessions.splice(i,1);
+      save();
+      renderSessions();
+    },250);
+  }
 }
 
 function undo(){
