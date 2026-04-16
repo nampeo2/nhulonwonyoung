@@ -314,6 +314,7 @@ function undo(){
 
 renderSessions();
 
+/* ===== JSON BACKUP SYSTEM ===== */
 <div class="card">
 <b>Backup JSON</b><br>
 <button onclick="exportJSON()">⬇️ Export JSON Backup</button>
@@ -321,9 +322,10 @@ renderSessions();
 <input type="file" id="importFile" accept="application/json">
 <button onclick="importJSON()">⬆️ Import & Merge</button>
 <div style="font-size:13px;color:#9aa0a6;margin-top:6px">
+Import sẽ MERGE dữ liệu, không ghi đè.
+</div>
+</div>
 
-</div>
-</div>
 
 function sessionKey(s){
   return `${s.start}-${s.end||0}`;
