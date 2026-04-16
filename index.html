@@ -15,6 +15,7 @@
 body{font-family:-apple-system;background:var(--bg);color:var(--text);margin:0}
 .card{background:var(--card);margin:12px;padding:14px;border-radius:16px}
 button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;background:var(--accent);color:#fff}
+button:disabled{background:#555;cursor:not-allowed}
 .square{width:80px;height:80px;border-radius:12px;font-size:14px}
 input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:#111;color:var(--text)}
 .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -23,7 +24,7 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <body>
 
 <div class="card">
-<button class="square" onclick="startSession()">Start</button>
+<button id="startBtn" class="square" onclick="startSession()">Start</button>
 <button class="square" onclick="stopSession()">Stop</button>
 </div>
 
@@ -55,18 +56,19 @@ function toLocalISOString(date){
   return new Date(date - tzOffset).toISOString();
 }
 
-// START luôn tạo session mới (chỉ có start)
 function startSession(){
+  let open = sessions.find(s=>!s.end);
+  if(open) return;
+
   history.push(cloneSessions());
   sessions.push({start:round15(Date.now()), end:null});
   save();
   renderSessions();
 }
 
-// STOP sẽ tìm session gần nhất chưa có end
 function stopSession(){
-  let open = [...sessions].reverse().find(s=>!s.end);
-  if(!open) return alert('Không có session nào đang mở');
+  let open = sessions.find(s=>!s.end);
+  if(!open) return alert('Không có session đang mở');
 
   history.push(cloneSessions());
   open.end = round15(Date.now());
@@ -128,22 +130,19 @@ function toDateInput(ts){
 }
 
 function renderSessions(){
+  let startBtn = document.getElementById('startBtn');
+  let hasOpen = sessions.some(s=>!s.end);
+  if(startBtn) startBtn.disabled = hasOpen;
+
   let list=document.getElementById('sessionList');
   list.innerHTML='';
 
   sessions.sort((a,b)=>a.start - b.start);
 
-  // cảnh báo nếu nhiều session chưa đóng
-  let openSessions = sessions.filter(s=>!s.end);
-  if(openSessions.length > 1){
-    alert('Có nhiều session chưa kết thúc!');
-  }
-
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
     li.className='row';
 
-    // highlight session đang mở
     if(!s.end){
       li.style.background = '#2a2f3a';
       li.style.borderRadius = '8px';
