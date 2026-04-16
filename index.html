@@ -72,30 +72,13 @@ function setRunningUI(running){
   if(running){
     startBtn.classList.add('active');
     stopBtn.classList.remove('active');
-
-    startBtn.disabled = true;
-    startBtn.style.opacity = 0.5;
-
-    stopBtn.disabled = false;
-    stopBtn.style.opacity = 1;
   }else{
-    startBtn.classList.remove('active');
-    stopBtn.classList.add('active');
-
-    startBtn.disabled = false;
-    startBtn.style.opacity = 1;
-
-    stopBtn.disabled = true;
-    stopBtn.style.opacity = 0.5;
-  }
-}else{
     startBtn.classList.remove('active');
     stopBtn.classList.add('active');
   }
 }
 
 function startSession(){
-  if(active) return alert('Already running');
   active={start:Date.now()};
   setRunningUI(true);
   alert('Started');
@@ -110,7 +93,6 @@ function stopSession(){
   setRunningUI(false);
   save();
   renderSessions();
-setRunningUI(false);
   alert('Saved');
 }
 
