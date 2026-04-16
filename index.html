@@ -44,7 +44,6 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
-let active=null;
 let history=[];
 
 function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
@@ -56,23 +55,25 @@ function toLocalISOString(date){
   return new Date(date - tzOffset).toISOString();
 }
 
+// START luôn tạo session mới (chỉ có start)
 function startSession(){
-  active={start:Date.now()};
-  alert('Started');
-}
-
-function stopSession(){
-  if(!active)return alert('No active session');
   history.push(cloneSessions());
-  let end=Date.now();
-  sessions.push({start:round15(active.start),end:round15(end)});
-  active=null;
+  sessions.push({start:round15(Date.now()), end:null});
   save();
   renderSessions();
-  alert('Saved');
 }
 
-// FIX range: bao gồm cả ngày bắt đầu
+// STOP sẽ tìm session gần nhất chưa có end
+function stopSession(){
+  let open = [...sessions].reverse().find(s=>!s.end);
+  if(!open) return alert('Không có session nào đang mở');
+
+  history.push(cloneSessions());
+  open.end = round15(Date.now());
+  save();
+  renderSessions();
+}
+
 function filterRange(){
   let fromVal=document.getElementById('from').value;
   let toVal=document.getElementById('to').value;
@@ -80,7 +81,7 @@ function filterRange(){
   let from=fromVal?new Date(fromVal+"T00:00:00").getTime():0;
   let to=toVal?new Date(toVal+"T23:59:59").getTime():Date.now();
 
-  return sessions.filter(s=>s.start>=from && s.end<=to);
+  return sessions.filter(s=>s.start>=from && s.end && s.end<=to);
 }
 
 function formatTime(ts){
@@ -100,16 +101,14 @@ function buildCSV(data){
 
   data.forEach(s=>{
     let d=new Date(s.start).toLocaleDateString();
-    let dur=(s.end-s.start)/60000;
-    dur = Math.round(dur); // làm tròn từng session như trước
+    let dur=Math.round((s.end-s.start)/60000);
     total+=dur;
     rows.push([d,formatTime(s.start),formatTime(s.end),minutesToHours(dur)]);
   });
 
   rows.push(["TOTAL","","",minutesToHours(total)]);
 
-  // dùng dấu ;
-  return rows.map(r=>r.join(";")).join("\n");
+  return "sep=;\n" + rows.map(r=>r.join(";")).join("\n");
 }
 
 function exportCSV(){
@@ -134,16 +133,31 @@ function renderSessions(){
 
   sessions.sort((a,b)=>a.start - b.start);
 
+  // cảnh báo nếu nhiều session chưa đóng
+  let openSessions = sessions.filter(s=>!s.end);
+  if(openSessions.length > 1){
+    alert('Có nhiều session chưa kết thúc!');
+  }
+
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
     li.className='row';
-    let mins=Math.round((s.end-s.start)/60000);
+
+    // highlight session đang mở
+    if(!s.end){
+      li.style.background = '#2a2f3a';
+      li.style.borderRadius = '8px';
+      li.style.padding = '4px';
+    }
+
+    let mins = s.end ? Math.round((s.end-s.start)/60000) : 0;
+
     li.innerHTML=`
       <input type="date" value="${toDateInput(s.start)}" onchange="editDate(${i}, this.value)">
       <input type="time" value="${toTimeInput(s.start)}" onchange="editTime(${i},'start',this.value)">
       -
-      <input type="time" value="${toTimeInput(s.end)}" onchange="editTime(${i},'end',this.value)">
-      (${minutesToHours(mins)}h)
+      <input type="time" value="${s.end?toTimeInput(s.end):''}" onchange="editTime(${i},'end',this.value)">
+      (${s.end?minutesToHours(mins)+'h':'...'})
       <button onclick="deleteSession(${i})">X</button>
     `;
     list.appendChild(li);
@@ -154,12 +168,16 @@ function editDate(i,value){
   history.push(cloneSessions());
   let s=sessions[i];
   let start=new Date(s.start);
-  let end=new Date(s.end);
   let [y,m,d]=value.split('-');
   start.setFullYear(y, m-1, d);
-  end.setFullYear(y, m-1, d);
   s.start=round15(start.getTime());
-  s.end=round15(end.getTime());
+
+  if(s.end){
+    let end=new Date(s.end);
+    end.setFullYear(y, m-1, d);
+    s.end=round15(end.getTime());
+  }
+
   save();
   renderSessions();
 }
@@ -167,11 +185,14 @@ function editDate(i,value){
 function editTime(i,type,value){
   history.push(cloneSessions());
   let s=sessions[i];
-  let d=new Date(type==='start'?s.start:s.end);
+
+  let base = new Date(type==='start'?s.start:(s.end||s.start));
   let [h,m]=value.split(':');
-  d.setHours(h); d.setMinutes(m);
-  if(type==='start') s.start=round15(d.getTime());
-  else s.end=round15(d.getTime());
+  base.setHours(h); base.setMinutes(m);
+
+  if(type==='start') s.start=round15(base.getTime());
+  else s.end=round15(base.getTime());
+
   save();
   renderSessions();
 }
@@ -181,7 +202,6 @@ function deleteSession(i){
   sessions.splice(i,1);
   save();
   renderSessions();
-  alert('Deleted');
 }
 
 function undo(){
@@ -189,7 +209,6 @@ function undo(){
   sessions=history.pop();
   save();
   renderSessions();
-  alert('Undo done');
 }
 
 renderSessions();
