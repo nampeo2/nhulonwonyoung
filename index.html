@@ -92,6 +92,8 @@ function minutesToHours(mins){
 }
 
 function buildCSV(data){
+  // sort theo ngày tăng dần
+  data = data.slice().sort((a,b)=>a.start - b.start);
   let rows=[["Date","Start","End","Hours"]];
   let total=0;
   data.forEach(s=>{
