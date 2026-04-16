@@ -24,10 +24,6 @@ button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;col
 
 /* secondary buttons */
 button:not(.start):not(.stop){background:#3a3f4b}
-
-/* delete button */
-.delete{background:#a94442}
-.delete:hover{background:#c0392b}
 button:not(.start):not(.stop):hover{background:#4a5160}
 button:disabled{background:#555;cursor:not-allowed;opacity:0.6}
 button:hover:not(:disabled){filter:brightness(1.1)}
@@ -93,13 +89,13 @@ input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:
 <b>Export CSV</b><br>
 <input type="date" id="from">
 <input type="date" id="to"><br>
-<button onclick="exportCSV()">⬇️ Export</button>
+<button onclick="exportCSV()">Export</button>
 </div>
 
 <div class="card">
 <div style="display:flex;justify-content:space-between;align-items:center">
   <b>Sessions</b>
-  <button onclick="undo()">↩️ Undo</button>
+  <button onclick="undo()">Undo</button>
 </div>
 <ul id="sessionList"></ul>
 </div>
@@ -243,7 +239,7 @@ function renderSessions(){
       -
       <input type="time" value="${s.end?toTimeInput(s.end):''}" onchange="editTime(${i},'end',this.value)">
       (${s.end?minutesToHours(mins)+'h':'...'})
-      <button class="delete" onclick="deleteSession(${i})">🗑</button>
+      <button onclick="deleteSession(${i})">X</button>
     `;
     
     // highlight nếu vừa edit
