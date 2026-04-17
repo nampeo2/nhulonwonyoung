@@ -18,14 +18,11 @@ body{font-family:-apple-system;background:var(--bg);color:var(--text);margin:0}
 .card{background:var(--card);margin:12px;padding:14px;border-radius:16px}
 button{padding:10px;border-radius:10px;border:none;margin:4px;cursor:pointer;color:#fff;transition:0.2s;background:#3a3f4b}
 
-/* primary buttons */
 .start{background:var(--green)}
 .stop{background:var(--red)}
 
-/* secondary buttons */
 button:not(.start):not(.stop){background:#3a3f4b}
 
-/* delete button */
 .delete{background:#a94442}
 .delete:hover{background:#c0392b}
 button:not(.start):not(.stop):hover{background:#4a5160}
@@ -34,273 +31,392 @@ button:hover:not(:disabled){filter:brightness(1.1)}
 
 .square{width:80px;height:80px;border-radius:12px;font-size:14px}
 
-.start{background:var(--green)}
-.stop{background:var(--red)}
-
 input{padding:6px;margin:4px;border-radius:6px;border:1px solid #333;background:#111;color:var(--text)}
 .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
-/* new item animation */
-@keyframes slideFadeIn{
-  from{opacity:0; transform:translateY(8px);} 
-  to{opacity:1; transform:translateY(0);} 
-}
+@keyframes slideFadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .new-item{animation:slideFadeIn 0.25s ease}
 
-/* edit highlight */
-@keyframes highlight{
-  from{background:#3a4150;} 
-  to{background:transparent;}
-}
+@keyframes highlight{from{background:#3a4150;}to{background:transparent;}}
 .highlight{animation:highlight 0.6s ease}
 
-/* delete animation */
-@keyframes fadeOut{
-  from{opacity:1; transform:translateY(0);} 
-  to{opacity:0; transform:translateY(-6px);} 
-}
+@keyframes fadeOut{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-6px);}}
 .fade-out{animation:fadeOut 0.25s ease forwards}
 
 .status{font-size:14px;margin-top:8px}
 
-/* animations */
-@keyframes pulse {
-  0%{transform:scale(1);}
-  50%{transform:scale(1.08);}
-  100%{transform:scale(1);}
-}
-
-@keyframes flash {
-  0%{opacity:1;}
-  50%{opacity:0.4;}
-  100%{opacity:1;}
-}
+@keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+@keyframes flash{0%{opacity:1;}50%{opacity:0.4;}100%{opacity:1;}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 
 .pulse{animation:pulse 0.3s ease}
 .flash{animation:flash 0.4s ease}
 
+/* Modal overlay */
+.modal-overlay{
+  display:none;
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.7);
+  z-index:1000;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  box-sizing:border-box;
+}
+.modal-overlay.active{display:flex;animation:fadeIn 0.2s ease}
+
+.modal{
+  background:#1c1f26;
+  border-radius:16px;
+  padding:20px;
+  width:100%;
+  max-width:480px;
+  max-height:90vh;
+  overflow-y:auto;
+  border:1px solid #2e3340;
+}
+
+.modal h3{margin:0 0 16px;font-size:16px;color:var(--text)}
+
+.step{display:none}
+.step.active{display:block}
+
+.modal-btns{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.modal-btns button{margin:0}
+
+.btn-primary{background:#2f6df6}
+.btn-primary:hover{background:#4481ff}
+.btn-cancel{background:#3a3f4b}
+.btn-export{background:var(--green)}
+
+/* Preview table */
+.preview-wrap{overflow-x:auto;margin-top:12px;max-height:280px;overflow-y:auto;border-radius:8px}
+.preview-table{width:100%;border-collapse:collapse;font-size:13px}
+.preview-table th{background:#252930;padding:8px 10px;text-align:left;color:var(--muted);position:sticky;top:0;font-weight:500}
+.preview-table td{padding:7px 10px;border-bottom:1px solid #252930}
+.preview-table tr:last-child td{border-bottom:none;font-weight:600;color:#fff;background:#252930}
+.preview-table tr:hover:not(:last-child) td{background:#252930}
+
+.preview-meta{font-size:13px;color:var(--muted);margin-top:10px}
+.preview-meta span{color:var(--text);font-weight:500}
+
+.range-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.range-row label{font-size:13px;color:var(--muted);margin-right:2px}
+.range-row input[type=date]{flex:1;min-width:120px}
+
+.step-indicator{display:flex;gap:6px;margin-bottom:16px;align-items:center}
+.step-dot{width:8px;height:8px;border-radius:50%;background:#3a3f4b;transition:0.2s}
+.step-dot.active{background:#2f6df6}
+.step-dot.done{background:#2ecc71}
+.step-label{font-size:12px;color:var(--muted);margin-left:4px}
+
+.no-data{text-align:center;padding:32px;color:var(--muted);font-size:14px}
 </style>
 </head>
 <body>
 
 <div class="card">
-<button id="startBtn" class="square start" onclick="startSession()">Start</button>
-<button id="stopBtn" class="square stop" onclick="stopSession()">Stop</button>
-<div id="status" class="status"></div>
+  <button id="startBtn" class="square start" onclick="startSession()">Start</button>
+  <button id="stopBtn" class="square stop" onclick="stopSession()">Stop</button>
+  <div id="status" class="status"></div>
 </div>
 
 <div class="card">
-<b>Export CSV</b><br>
-<input type="date" id="from">
-<input type="date" id="to"><br>
-<button onclick="exportCSV()">⬇️ Export</button>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <b>Sessions</b>
+    <div style="display:flex;gap:4px">
+      <button onclick="openExportModal()">⬇️ Export CSV</button>
+      <button onclick="undo()">↩️ Undo</button>
+    </div>
+  </div>
+  <ul id="sessionList"></ul>
 </div>
 
-<div class="card">
-<div style="display:flex;justify-content:space-between;align-items:center">
-  <b>Sessions</b>
-  <button onclick="undo()">↩️ Undo</button>
-</div>
-<ul id="sessionList"></ul>
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <h3>Export CSV</h3>
+
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+      <div class="step-dot" id="dot3"></div>
+      <span class="step-label" id="stepLabel">Chọn khoảng thời gian</span>
+    </div>
+
+    <!-- Step 1: Date range -->
+    <div class="step active" id="step1">
+      <div class="range-row">
+        <label>Từ</label>
+        <input type="date" id="fromDate">
+        <label>Đến</label>
+        <input type="date" id="toDate">
+      </div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeModal()">Hủy</button>
+        <button class="btn-primary" onclick="goToPreview()">Xem trước →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Preview -->
+    <div class="step" id="step2">
+      <div id="previewContent"></div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="backToRange()">← Quay lại</button>
+        <button class="btn-export" id="confirmExportBtn" onclick="doExport()">⬇️ Xác nhận & Tải xuống</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 let sessions=JSON.parse(localStorage.getItem('sessions'))||[];
 let history=[];
-let lastEditedIndex = null;
+let lastEditedIndex=null;
 
 function save(){localStorage.setItem('sessions',JSON.stringify(sessions));}
 function cloneSessions(){return JSON.parse(JSON.stringify(sessions));}
 function round15(ts){return Math.round(ts/(15*60000))*(15*60000);}
 
 function toLocalISOString(date){
-  const tzOffset = date.getTimezoneOffset() * 60000;
-  return new Date(date - tzOffset).toISOString();
+  const tzOffset=date.getTimezoneOffset()*60000;
+  return new Date(date-tzOffset).toISOString();
 }
 
 function startSession(){
-  let btn = document.getElementById('startBtn');
-  if(btn){
-    btn.classList.add('pulse');
-    setTimeout(()=>btn.classList.remove('pulse'),300);
-  }
-  let open = sessions.find(s=>!s.end);
-  if(open) return;
-
+  let btn=document.getElementById('startBtn');
+  if(btn){btn.classList.add('pulse');setTimeout(()=>btn.classList.remove('pulse'),300);}
+  let open=sessions.find(s=>!s.end);
+  if(open)return;
   history.push(cloneSessions());
-  sessions.push({start:round15(Date.now()), end:null});
+  sessions.push({start:round15(Date.now()),end:null});
   save();
   renderSessions();
 }
 
 function stopSession(){
-  let btn = document.getElementById('stopBtn');
-  if(btn){
-    btn.classList.add('flash');
-    setTimeout(()=>btn.classList.remove('flash'),400);
-  }
-  let open = sessions.find(s=>!s.end);
-  if(!open) return;
-
+  let btn=document.getElementById('stopBtn');
+  if(btn){btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),400);}
+  let open=sessions.find(s=>!s.end);
+  if(!open)return;
   history.push(cloneSessions());
-  open.end = round15(Date.now());
+  open.end=round15(Date.now());
   save();
   renderSessions();
 }
 
-function filterRange(){
-  let fromVal=document.getElementById('from').value;
-  let toVal=document.getElementById('to').value;
-
-  let from=fromVal?new Date(fromVal+"T00:00:00").getTime():0;
-  let to=toVal?new Date(toVal+"T23:59:59").getTime():Date.now();
-
+function filterRange(from,to){
   return sessions.filter(s=>s.start>=from && s.end && s.end<=to);
+}
+
+function formatTime12(ts){
+  let d=new Date(ts);
+  let h=d.getHours();
+  let m=d.getMinutes();
+  let ampm=h>=12?'PM':'AM';
+  h=h%12;
+  if(h===0)h=12;
+  return h+':'+(m<10?'0'+m:m)+' '+ampm;
 }
 
 function formatTime(ts){
   let d=new Date(ts);
-  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 }
 
 function minutesToHours(mins){
   return (mins/60).toFixed(2);
 }
 
-function buildCSV(data){
-  data = data.slice().sort((a,b)=>a.start - b.start);
-
+function buildCSVData(data){
+  data=data.slice().sort((a,b)=>a.start-b.start);
   let rows=[["Date","Start","End","Hours"]];
   let total=0;
-
   data.forEach(s=>{
     let d=new Date(s.start).toLocaleDateString();
     let dur=Math.round((s.end-s.start)/60000);
     total+=dur;
-    rows.push([d,formatTime(s.start),formatTime(s.end),minutesToHours(dur)]);
+    rows.push([d,formatTime12(s.start),formatTime12(s.end),minutesToHours(dur)]);
   });
-
   rows.push(["TOTAL","","",minutesToHours(total)]);
-
-  return "sep=;\n" + rows.map(r=>r.join(";")).join("\n");
+  return rows;
 }
 
-function exportCSV(){
-  let csv=buildCSV(filterRange());
+function buildCSV(rows){
+  return "sep=;\n"+rows.map(r=>r.join(";")).join("\n");
+}
+
+function toTimeInput(ts){return toLocalISOString(new Date(ts)).slice(11,16);}
+function toDateInput(ts){return toLocalISOString(new Date(ts)).slice(0,10);}
+
+/* ---- Export modal ---- */
+function openExportModal(){
+  // default range: this month
+  let now=new Date();
+  let y=now.getFullYear(),m=now.getMonth();
+  let firstDay=new Date(y,m,1);
+  let lastDay=new Date(y,m+1,0);
+  document.getElementById('fromDate').value=toDateInput(firstDay.getTime());
+  document.getElementById('toDate').value=toDateInput(lastDay.getTime());
+  setStep(1);
+  document.getElementById('exportModal').classList.add('active');
+}
+
+function closeModal(){
+  document.getElementById('exportModal').classList.remove('active');
+}
+
+function handleOverlayClick(e){
+  if(e.target===document.getElementById('exportModal')) closeModal();
+}
+
+function setStep(n){
+  document.getElementById('step1').classList.toggle('active',n===1);
+  document.getElementById('step2').classList.toggle('active',n===2);
+  ['dot1','dot2'].forEach((id,i)=>{
+    let dot=document.getElementById(id);
+    dot.classList.remove('active','done');
+    if(i+1<n) dot.classList.add('done');
+    else if(i+1===n) dot.classList.add('active');
+  });
+  let labels=['Chọn khoảng thời gian','Xem trước & xác nhận'];
+  document.getElementById('stepLabel').textContent=labels[n-1];
+}
+
+function getRange(){
+  let fromVal=document.getElementById('fromDate').value;
+  let toVal=document.getElementById('toDate').value;
+  let from=fromVal?new Date(fromVal+"T00:00:00").getTime():0;
+  let to=toVal?new Date(toVal+"T23:59:59").getTime():Date.now();
+  return{from,to};
+}
+
+function goToPreview(){
+  let{from,to}=getRange();
+  let data=filterRange(from,to);
+  let rows=buildCSVData(data);
+  let content=document.getElementById('previewContent');
+
+  if(data.length===0){
+    content.innerHTML='<div class="no-data">Không có dữ liệu trong khoảng này</div>';
+    document.getElementById('confirmExportBtn').disabled=true;
+  } else {
+    document.getElementById('confirmExportBtn').disabled=false;
+    // build preview table (exclude TOTAL row from data rows)
+    let dataRows=rows.slice(1,rows.length-1);
+    let totalRow=rows[rows.length-1];
+    let totalMins=0;
+    data.forEach(s=>totalMins+=Math.round((s.end-s.start)/60000));
+
+    let html=`
+      <div class="preview-meta">
+        <span>${data.length}</span> session${data.length>1?'s':''} &nbsp;·&nbsp; Tổng: <span>${minutesToHours(totalMins)}h</span>
+      </div>
+      <div class="preview-wrap">
+        <table class="preview-table">
+          <thead><tr><th>Ngày</th><th>Bắt đầu</th><th>Kết thúc</th><th>Giờ</th></tr></thead>
+          <tbody>
+            ${dataRows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}
+            <tr>${totalRow.map((c,i)=>`<td>${c}</td>`).join('')}</tr>
+          </tbody>
+        </table>
+      </div>`;
+    content.innerHTML=html;
+  }
+
+  setStep(2);
+}
+
+function backToRange(){setStep(1);}
+
+function doExport(){
+  let{from,to}=getRange();
+  let data=filterRange(from,to);
+  if(data.length===0)return;
+  let rows=buildCSVData(data);
+  let csv=buildCSV(rows);
   let blob=new Blob([csv],{type:'text/csv'});
   let a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='timelog.csv';
   a.click();
+  closeModal();
 }
 
-function toTimeInput(ts){
-  return toLocalISOString(new Date(ts)).slice(11,16);
-}
-function toDateInput(ts){
-  return toLocalISOString(new Date(ts)).slice(0,10);
-}
-
+/* ---- Sessions render ---- */
 function renderSessions(){
-  let startBtn = document.getElementById('startBtn');
-  let stopBtn = document.getElementById('stopBtn');
-  let status = document.getElementById('status');
-
-  let hasOpen = sessions.some(s=>!s.end);
-
-  if(startBtn) startBtn.disabled = hasOpen;
-  if(stopBtn) stopBtn.disabled = !hasOpen;
-
-  if(status){
-    status.innerText = hasOpen ? "🟢 Đang ghi thời gian" : "⚪ Chưa bắt đầu";
-  }
+  let startBtn=document.getElementById('startBtn');
+  let stopBtn=document.getElementById('stopBtn');
+  let status=document.getElementById('status');
+  let hasOpen=sessions.some(s=>!s.end);
+  if(startBtn) startBtn.disabled=hasOpen;
+  if(stopBtn) stopBtn.disabled=!hasOpen;
+  if(status) status.innerText=hasOpen?"🟢 Đang ghi thời gian":"⚪ Chưa bắt đầu";
 
   let list=document.getElementById('sessionList');
   list.innerHTML='';
-
-  sessions.sort((a,b)=>a.start - b.start);
+  sessions.sort((a,b)=>a.start-b.start);
 
   sessions.forEach((s,i)=>{
     let li=document.createElement('li');
-
-    // animate item mới (item cuối cùng)
-    if(i === sessions.length - 1){
-      li.classList.add('new-item');
-    }
+    if(i===sessions.length-1) li.classList.add('new-item');
     li.className='row';
-
     if(!s.end){
-      li.style.background = '#2a2f3a';
-      li.style.borderRadius = '8px';
-      li.style.padding = '4px';
+      li.style.background='#2a2f3a';
+      li.style.borderRadius='8px';
+      li.style.padding='4px';
     }
-
-    let mins = s.end ? Math.round((s.end-s.start)/60000) : 0;
-
+    let mins=s.end?Math.round((s.end-s.start)/60000):0;
     li.innerHTML=`
-      <input type="date" value="${toDateInput(s.start)}" onchange="editDate(${i}, this.value)">
+      <input type="date" value="${toDateInput(s.start)}" onchange="editDate(${i},this.value)">
       <input type="time" value="${toTimeInput(s.start)}" onchange="editTime(${i},'start',this.value)">
       -
       <input type="time" value="${s.end?toTimeInput(s.end):''}" onchange="editTime(${i},'end',this.value)">
       (${s.end?minutesToHours(mins)+'h':'...'})
       <button class="delete" onclick="deleteSession(${i})">🗑</button>
     `;
-    
-    // highlight nếu vừa edit
-    if(i === lastEditedIndex){
-      li.classList.add('highlight');
-    }
-
+    if(i===lastEditedIndex) li.classList.add('highlight');
     list.appendChild(li);
   });
 }
 
 function editDate(i,value){
-  lastEditedIndex = i;
+  lastEditedIndex=i;
   history.push(cloneSessions());
   let s=sessions[i];
   let start=new Date(s.start);
-  let [y,m,d]=value.split('-');
-  start.setFullYear(y, m-1, d);
+  let[y,m,d]=value.split('-');
+  start.setFullYear(y,m-1,d);
   s.start=round15(start.getTime());
-
   if(s.end){
     let end=new Date(s.end);
-    end.setFullYear(y, m-1, d);
+    end.setFullYear(y,m-1,d);
     s.end=round15(end.getTime());
   }
-
-  save();
-  renderSessions();
+  save();renderSessions();
 }
 
 function editTime(i,type,value){
-  lastEditedIndex = i;
+  lastEditedIndex=i;
   history.push(cloneSessions());
   let s=sessions[i];
-
-  let base = new Date(type==='start'?s.start:(s.end||s.start));
-  let [h,m]=value.split(':');
-  base.setHours(h); base.setMinutes(m);
-
+  let base=new Date(type==='start'?s.start:(s.end||s.start));
+  let[h,m]=value.split(':');
+  base.setHours(h);base.setMinutes(m);
   if(type==='start') s.start=round15(base.getTime());
   else s.end=round15(base.getTime());
-
-  save();
-  renderSessions();
+  save();renderSessions();
 }
 
 function deleteSession(i){
   let list=document.getElementById('sessionList');
   let item=list.children[i];
-
   if(item){
     item.classList.add('fade-out');
     setTimeout(()=>{
       history.push(cloneSessions());
       sessions.splice(i,1);
-      save();
-      renderSessions();
+      save();renderSessions();
     },250);
   }
 }
@@ -308,12 +424,10 @@ function deleteSession(i){
 function undo(){
   if(history.length===0)return alert('Nothing to undo');
   sessions=history.pop();
-  save();
-  renderSessions();
+  save();renderSessions();
 }
 
 renderSessions();
 </script>
-
 </body>
 </html>
