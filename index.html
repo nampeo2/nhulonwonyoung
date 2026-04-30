@@ -759,8 +759,8 @@ input[type=date]:focus, input[type=time]:focus {
 
   <div class="sort-bar">
     <span class="sort-label">Sắp xếp</span>
-    <button class="sort-chip active" id="chipDesc" onclick="setSort('desc')">↓ Mới nhất</button>
-    <button class="sort-chip" id="chipAsc" onclick="setSort('asc')">↑ Cũ nhất</button>
+    <button class="sort-chip active" id="chipAsc" onclick="setSort('asc')">↑ Cũ nhất</button>
+    <button class="sort-chip" id="chipDesc" onclick="setSort('desc')">↓ Mới nhất</button>
   </div>
 
   <ul id="sessionList"></ul>
@@ -906,8 +906,8 @@ function undo() {
 /* ─── Sort ─── */
 function setSort(order) {
   sortOrder = order;
-  document.getElementById('chipDesc').classList.toggle('active', order === 'desc');
   document.getElementById('chipAsc').classList.toggle('active', order === 'asc');
+  document.getElementById('chipDesc').classList.toggle('active', order === 'desc');
   renderSessions();
 }
 
