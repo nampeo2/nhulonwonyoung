@@ -906,8 +906,8 @@ function undo() {
 /* ─── Sort ─── */
 function setSort(order) {
   sortOrder = order;
-  document.getElementById('chipAsc').classList.toggle('active', order === 'asc');
   document.getElementById('chipDesc').classList.toggle('active', order === 'desc');
+  document.getElementById('chipAsc').classList.toggle('active', order === 'asc');
   renderSessions();
 }
 
