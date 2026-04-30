@@ -722,7 +722,7 @@ input[type=date]:focus, input[type=time]:focus {
 <!-- ─── Header ─── -->
 <div class="app-header">
   <div class="brand">
-    <div class="brand-name">⏱ Giờ Làm</div>
+    <div class="brand-name">Giờ Làm</div>
     <div class="brand-date" id="appDate"></div>
   </div>
   <div class="live-clock" id="liveClock"></div>
@@ -750,8 +750,8 @@ input[type=date]:focus, input[type=time]:focus {
   <div class="section-header">
     <span class="section-title">Phiên làm việc</span>
     <div class="header-actions">
-      <button class="btn-sm" onclick="undo()">↩ Hoàn tác</button>
-      <button class="btn-sm export-btn" onclick="openExportModal()">⬇ Export CSV</button>
+      <button class="btn-sm" onclick="undo()">Hoàn tác</button>
+      <button class="btn-sm export-btn" onclick="openExportModal()">Export CSV</button>
     </div>
   </div>
 
@@ -759,8 +759,8 @@ input[type=date]:focus, input[type=time]:focus {
 
   <div class="sort-bar">
     <span class="sort-label">Sắp xếp</span>
-    <button class="sort-chip active" id="chipAsc" onclick="setSort('asc')">↑ Cũ nhất</button>
-    <button class="sort-chip" id="chipDesc" onclick="setSort('desc')">↓ Mới nhất</button>
+    <button class="sort-chip active" id="chipAsc" onclick="setSort('desc')">↓ Mới nhất</button>
+    <button class="sort-chip" id="chipDesc" onclick="setSort('asc')">↑ Cũ nhất</button>
   </div>
 
   <ul id="sessionList"></ul>
@@ -807,7 +807,7 @@ input[type=date]:focus, input[type=time]:focus {
       </div>
       <div class="modal-btns">
         <button class="modal-btn btn-cancel" onclick="closeModal()">Hủy</button>
-        <button class="modal-btn btn-primary" onclick="goToPreview()">Xem trước →</button>
+        <button class="modal-btn btn-primary" onclick="goToPreview()">Xem trước</button>
       </div>
     </div>
 
@@ -815,8 +815,8 @@ input[type=date]:focus, input[type=time]:focus {
     <div class="step" id="step2">
       <div id="previewContent"></div>
       <div class="modal-btns">
-        <button class="modal-btn btn-back" onclick="backToRange()">← Quay lại</button>
-        <button class="modal-btn btn-confirm" id="confirmExportBtn" onclick="doExport()">⬇ Tải xuống CSV</button>
+        <button class="modal-btn btn-back" onclick="backToRange()">Quay lại</button>
+        <button class="modal-btn btn-confirm" id="confirmExportBtn" onclick="doExport()">Tải xuống CSV</button>
       </div>
     </div>
   </div>
